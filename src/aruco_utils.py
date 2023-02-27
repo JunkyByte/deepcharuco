@@ -2,6 +2,10 @@ import numpy as np
 import cv2
 
 
+def get_aruco_dict(board_name):
+    return cv2.aruco.Dictionary_get(getattr(cv2.aruco, board_name))
+
+
 def board_image(board, resolution: tuple[int, int],
                 row_count: int, col_count: int) -> tuple[np.ndarray, np.ndarray]:
     """
@@ -19,7 +23,7 @@ def board_image(board, resolution: tuple[int, int],
 
 
 def draw_inner_corners(img: np.ndarray, corners: np.ndarray,
-                       draw_ids = False, radius = 3) -> np.ndarray:
+                       draw_ids=False, radius=2) -> np.ndarray:
     assert img.ndim == 3 and img.shape[-1] == 3
     img = img.copy()
 
@@ -41,11 +45,39 @@ def draw_inner_corners(img: np.ndarray, corners: np.ndarray,
     return img
 
 
+def draw_circle_pred(img: np.ndarray, loc: np.ndarray, ids: np.ndarray,
+                     dust_bin_ids: int, draw_ids=False, radius=2):
+    # TODO: This assumes to have class_indices for keypoints already
+    # TODO: Conversion for actual prediction
+
+    # Find in which regions the corners are
+    roi = np.argwhere(ids != dust_bin_ids)
+    ids_found = ids[ids != dust_bin_ids]
+
+    region_pixel = loc[ids != dust_bin_ids]
+    
+    # Recover exact pixel in original resolution
+    xs = 8 * roi[:, 1] + (region_pixel % 8)
+    ys = 8 * roi[:, 0] + (region_pixel / 8).astype(int)
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    text_thickness = 1
+    for (*corner, ith) in zip(xs, ys, ids_found):
+        cv2.circle(img, corner, radius=radius, color=(255, 0, 0),
+                   thickness=text_thickness)
+
+        if draw_ids:
+            label_size, _ = cv2.getTextSize(str(ith), font, .5, text_thickness)
+            pos = (corner[0] - label_size[0] // 2, corner[1] + label_size[1] // 2 + 5)
+            cv2.putText(img, str(ith), pos, font, .3, (255, 0, 0), text_thickness)
+    return img
+
+
 def get_board(configs):
     board = cv2.aruco.CharucoBoard_create(
         squaresX=configs.col_count,
         squaresY=configs.row_count,
         squareLength=configs.square_len,
         markerLength=configs.marker_len,
-        dictionary=configs.aruco_dict)
+        dictionary=get_aruco_dict(configs.board_name))
     return board

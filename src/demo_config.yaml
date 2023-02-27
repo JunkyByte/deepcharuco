@@ -1,0 +1,15 @@
+# Configuration
+board_name: DICT_4X4_50
+row_count: 5
+col_count: 5
+square_len: 0.01
+marker_len: 0.0075
+
+input_size: [320, 240]
+batch_size_train: 32
+batch_size_val: 128
+num_workers: 6
+train_labels: '/home/adryw/dataset/coco25/annotations/captions_train2017.json'
+val_labels: '/home/adryw/dataset/coco25/annotations/captions_val2017.json'
+val_images: '/home/adryw/dataset/coco25/val2017/'
+train_images: '/home/adryw/dataset/coco25/train2017/'

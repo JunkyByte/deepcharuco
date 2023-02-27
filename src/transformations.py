@@ -1,8 +1,10 @@
+import imgaug
 import albumentations as A
 import numpy as np
 import cv2
+import random
 
-from aruco_utils import board_image, draw_inner_corners
+from aruco_utils import board_image, draw_inner_corners, get_board
 
 from custom_aug.custom_aug import PasteBoard, HistogramMatching
 
@@ -17,10 +19,14 @@ class Transformation:
     4) Augment coco + board image
     5) Profit!
     """
-    def __init__(self, configs):
-        # Generate a board with 2x resolution of min input dim
-        dr = min(configs.input_size) * 2
-        board_img, corners = board_image(configs.aruco_board, (dr, dr),
+    def __init__(self, configs, seed=None):
+        if seed is not None:
+            random.seed(seed)
+            imgaug.random.seed(seed)
+
+        min_r = min(configs.input_size)
+        board = get_board(configs)
+        board_img, corners = board_image(board, (min_r, min_r),
                                          configs.row_count, configs.col_count)
 
         self.board_img = board_img
@@ -30,15 +36,15 @@ class Transformation:
                                   dtype=np.uint8, fill_value=255)
 
         board_transf = [
-            A.PadIfNeeded(min_height=configs.input_size[1] * 2,
-                          min_width=configs.input_size[0] * 2,
+            A.PadIfNeeded(min_height=configs.input_size[1],
+                          min_width=configs.input_size[0],
                           always_apply=True, border_mode=cv2.BORDER_CONSTANT,
                           value=0, mask_value=0),
             A.augmentations.geometric.Affine(
-                scale=(0.15, 1),
+                scale=(0.2, 0.8),
                 rotate=(-360, 360),
-                shear=(-45, 45),
-                translate_percent=(-0.5, 0.5),
+                shear=(-40, 40),
+                translate_percent=(-0.45, 0.45),
                 keep_ratio=True,
                 fit_output=False,
                 always_apply=True,
@@ -56,7 +62,7 @@ class Transformation:
         )
 
         # 1bis) COCO transformation
-        self._transf_coco = A.Compose([  # Here TODO might lead to bug if imgsize < cropsize
+        self._transf_coco = A.Compose([
             A.augmentations.geometric.Flip(p=0.5),
             A.augmentations.geometric.Rotate(limit=(-180, 180), crop_border=True, p=0.5),
             A.PadIfNeeded(min_height=configs.input_size[1],
@@ -70,10 +76,18 @@ class Transformation:
 
         # 2 + 3) Apply histogram matching then Paste transformation
         self._transf_joint = A.Compose([
-            HistogramMatching(blend_ratio=(0, 0.7), p=0.7),
+            HistogramMatching(blend_ratio=(0, 0.5), p=0.7),
             PasteBoard(always_apply=True),
-            A.augmentations.RandomShadow(shadow_roi=(0, 0, 1, 1), shadow_dimension=4, p=0.3),
-            A.augmentations.RandomBrightnessContrast(brightness_limit=(-0.8, 0.3), contrast_limit=0.3, p=0.8),
+
+            # Augmentations as from paper
+            A.augmentations.GaussNoise(p=0.5),
+            A.augmentations.MotionBlur(p=0.5),
+            A.augmentations.GaussianBlur(p=0.25),
+            A.augmentations.MultiplicativeNoise(p=0.5),
+            A.augmentations.RandomBrightnessContrast(brightness_limit=(-0.8, 0.35),
+                                                     contrast_limit=0, p=0.5),
+            # A.augmentations.RandomShadow(shadow_roi=(0, 0, 1, 1), shadow_dimension=4, p=0.3),
+
         ], keypoint_params=A.KeypointParams(format='xy', label_fields=['ids'],
                                             remove_invisible=False)
         )

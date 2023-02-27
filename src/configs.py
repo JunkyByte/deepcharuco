@@ -1,6 +1,6 @@
 import yaml
 import cv2
-from aruco_utils import get_board
+from aruco_utils import get_board, board_image
 from pydantic.dataclasses import dataclass
 
 
@@ -17,15 +17,18 @@ class Config:
     marker_len: float
 
     input_size: tuple[int, int]
+    num_workers: int
+    batch_size_train: int
+    batch_size_val: int
+    train_labels: str
+    val_labels: str
+    train_images: str
+    val_images: str
 
     # Self populated
-    aruco_board = None  # TODO? Whath's the class
-    aruco_dict = None
     n_ids: int = None
 
     def __post_init__(self):
-        self.aruco_dict = cv2.aruco.Dictionary_get(getattr(cv2.aruco, self.board_name))
-        self.aruco_board = get_board(self)
         self.n_ids = (self.row_count - 1) * (self.col_count - 1)
 
 
@@ -36,7 +39,7 @@ def load_configuration(path: str) -> Config:
 
 
 if __name__ == '__main__':
-    from aruco_utils import board_image, draw_inner_corners
+    from aruco_utils import draw_inner_corners
     configs = load_configuration(CONFIG_PATH)
 
     # Create an image from the gridboard

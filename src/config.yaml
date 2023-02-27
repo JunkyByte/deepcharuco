@@ -1,8 +1,0 @@
-# Configuration
-board_name: DICT_4X4_50
-row_count: 5
-col_count: 5
-square_len: 0.01
-marker_len: 0.0075
-
-input_size: [320, 240]
