@@ -141,4 +141,4 @@ if __name__ == '__main__':
     model = model.to(device)
 
     from torchinfo import summary
-    summary(model, input_size=(1, 1, 240, 320))
+    summary(model, input_size=(1, 3, 240, 320))

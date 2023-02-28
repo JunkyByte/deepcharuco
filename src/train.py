@@ -2,6 +2,7 @@ from torch.utils.data import DataLoader
 
 from configs import load_configuration
 from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.callbacks import StochasticWeightAveraging
 import configs
 from data import CharucoDataset
 from models.net import lModel, dcModel
@@ -26,14 +27,17 @@ if __name__ == '__main__':
                                  validation=True)
 
     train_loader = DataLoader(dataset, batch_size=configs.batch_size_train,
-                              shuffle=True, num_workers=configs.num_workers, pin_memory=True)
+                              shuffle=True, num_workers=configs.num_workers,
+                              pin_memory=True, prefetch_factor=5)
     val_loader = DataLoader(dataset_val, batch_size=configs.batch_size_val,
-                            shuffle=False, num_workers=configs.num_workers, pin_memory=True)
+                            shuffle=False, num_workers=configs.num_workers,
+                            pin_memory=True, prefetch_factor=5)
 
     model = dcModel(n_ids=configs.n_ids)
     train_model = lModel(model)
 
     logger = TensorBoardLogger("tb_logs", name="deepcharuco")
-    trainer = pl.Trainer(limit_train_batches=25, limit_val_batches=25,
-                         max_epochs=1, logger=logger)
+    trainer = pl.Trainer(max_epochs=100, logger=logger, accelerator="auto",
+                         callbacks=[StochasticWeightAveraging(swa_lrs=1e-2)])#,
+                         #ckpt_path='./tb_logs/deepcharuco/version_0/checkpoints/epoch=0-step=3697.ckpt')
     trainer.fit(train_model, train_loader, val_loader)

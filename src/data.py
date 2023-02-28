@@ -66,8 +66,8 @@ class CharucoDataset(Dataset):
             loc[y, x] = offset_x + 8 * offset_y  # encode position of the pixels
             ident[y, x] = ith
 
-        w = MagicGrid(640, 640, waitKey=0)
         if self._visualize:
+            w = MagicGrid(640, 640, waitKey=0)
             from aruco_utils import draw_inner_corners, draw_circle_pred
             img = image.copy()
             img = draw_inner_corners(img, keypoints, draw_ids=True, radius=3)
@@ -90,7 +90,6 @@ class CharucoDataset(Dataset):
 
     def __len__(self):
         return len(self.labels)
-
 
 
 def inbound(x, y, width, height):

@@ -19,7 +19,7 @@ def board_image(board, resolution: tuple[int, int],
     inn_rc = np.arange(1, row_count)
     inn_cc = np.arange(1, col_count)
     corners = np.array(np.meshgrid(inn_rc, inn_cc)).reshape((2, -1)).T * pixel_offset
-    return img, corners.astype(np.int)
+    return img, corners.astype(int)
 
 
 def draw_inner_corners(img: np.ndarray, corners: np.ndarray,
@@ -43,6 +43,16 @@ def draw_inner_corners(img: np.ndarray, corners: np.ndarray,
             pos = (corner[0] - label_size[0] // 2, corner[1] + label_size[1] // 2 - 10)
             cv2.putText(img, str(ith), pos, font, .3, (0, 0, 255), text_thickness)
     return img
+
+
+def pred_to_keypoints(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: int):
+    # Steps to convert model output to keypoints:
+    # Do an argmax of ids_hat, care where != bin
+    # For each of those regions get loc_hat infos
+    # Use ids coords + argmax on loc_hat infos to select pixel
+    # TODO
+    print(ids_hat.shape)
+    np.argmax(ids_hat, axis=-1)
 
 
 def draw_circle_pred(img: np.ndarray, loc: np.ndarray, ids: np.ndarray,
