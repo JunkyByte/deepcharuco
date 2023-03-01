@@ -8,7 +8,7 @@ from aruco_utils import draw_circle_pred, draw_inner_corners
 import configs
 from configs import load_configuration
 from data import CharucoDataset
-from models.model_utils import pre_bgr_image, label_to_keypoints, pred_argmax
+from models.model_utils import pre_bgr_image, label_to_keypoints, pred_argmax, pred_sub_pix
 from models.net import lModel, dcModel
 
 
@@ -26,7 +26,7 @@ if __name__ == '__main__':
                                  visualize=False,
                                  validation=True)
 
-    w = MagicGrid(640, 480, waitKey=0)
+    w = MagicGrid(1200, 1200, waitKey=0)
     for ith, sample in enumerate(dataset_val):
         image, label = sample.values()
         loc, ident = label
@@ -34,11 +34,13 @@ if __name__ == '__main__':
         # Images returned from dataset are normalized.
         img = ((image.copy() * 255) + 128).astype(np.uint8)
         img = cv2.cvtColor(img[0], cv2.COLOR_GRAY2BGR)
+        infer_image = img.copy()
+
         # Draw labels in BLUE
-        img = draw_circle_pred(img, loc, ident, config.n_ids, radius=3, draw_ids=True)
+        # img = draw_circle_pred(img, loc, ident, config.n_ids, radius=3, draw_ids=False)
 
         # Do prediction
-        loc_hat, ids_hat = model.infer_image(img)
+        loc_hat, ids_hat = model.infer_image(infer_image)
 
         # Draw predictions in RED  # TODO fix this
         loc_hat = loc_hat[0]
@@ -46,8 +48,12 @@ if __name__ == '__main__':
         img = draw_circle_pred(img, loc_hat, ids_hat, config.n_ids, radius=1,
                                draw_ids=True, color=(0, 0, 255))
 
+        sub_pix_image = cv2.cvtColor(infer_image, cv2.COLOR_BGR2GRAY)
+        ref_corners, ids = pred_sub_pix(sub_pix_image, loc_hat, ids_hat, config.n_ids, region=(5, 5))
+        img = draw_inner_corners(img, ref_corners, draw_ids=False, radius=1, color=(0, 255, 0))
+
         # Show result
-        img = cv2.resize(img, (img.shape[1] * 2, img.shape[0] * 2), cv2.INTER_LANCZOS4)
+        img = cv2.resize(img, (img.shape[1] * 4, img.shape[0] * 4), cv2.INTER_LANCZOS4)
         if w.update([img]) == ord('q'):
             break
 
