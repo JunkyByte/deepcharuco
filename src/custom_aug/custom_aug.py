@@ -32,12 +32,17 @@ class PasteBoard(DualTransform):  # TODO
     def apply(self, img, **params):
         target = params['target']
         mask = params['mask'].astype(bool)
+        isnegative = params['isnegative']
+
+        if isnegative:
+            return target
+        assert img.shape == target.shape
         target[mask] = img[mask]
         return target
 
     @property
     def targets_as_params(self) -> list[str]:
-        return ['target', 'mask']
+        return ['target', 'mask', 'isnegative']
 
     def apply_to_mask(self, img, **params):
         return img
@@ -45,8 +50,13 @@ class PasteBoard(DualTransform):  # TODO
     def get_params_dependent_on_targets(self, params):
         return params
 
-    def apply_to_keypoint(self, keypoint, **params):  # apply_to_keypointS?
+    def apply_to_keypoint(self, keypoint, **params):
         return keypoint
+    
+    def apply_to_keypoints(self, keypoints, **params):
+        if params['isnegative']:
+            return np.full_like(keypoints, fill_value=-1)
+        return keypoints
 
     def get_transform_init_args_names(self):
         return None
