@@ -1,5 +1,7 @@
 from torch import optim, nn
+from .model_utils import pre_bgr_image, pred_argmax
 import torch
+import numpy as np
 import pytorch_lightning as pl
 
 
@@ -11,13 +13,13 @@ class dcModel(torch.nn.Module):
 
         self.relu = torch.nn.ReLU(inplace=True)
         self.pool = torch.nn.MaxPool2d(kernel_size=2, stride=2, return_indices=True)
-        self.unpool = torch.nn.MaxUnpool2d(kernel_size=2, stride=2)
+        self.n_ids = n_ids
         c1, c2, c3, c4, c5 = 64, 64, 128, 128, 256
         det_h = 65
         self.reBn = True
 
         # Shared Encoder.
-        self.conv1a = torch.nn.Conv2d(3, c1, kernel_size=3, stride=1, padding=1)
+        self.conv1a = torch.nn.Conv2d(1, c1, kernel_size=3, stride=1, padding=1)
         self.bn1a = nn.BatchNorm2d(c1)
         self.conv1b = torch.nn.Conv2d(c1, c1, kernel_size=3, stride=1, padding=1)
         self.bn1b = nn.BatchNorm2d(c1)
@@ -44,7 +46,7 @@ class dcModel(torch.nn.Module):
 
         self.convDb = torch.nn.Conv2d(c5, n_ids + 1, kernel_size=1, stride=1, padding=0)
 
-    def forward(self, x, subpixel=False):
+    def forward(self, x):
         """
         Input
           x: Image pytorch tensor shaped N x 1 x H x W.
@@ -74,8 +76,28 @@ class dcModel(torch.nn.Module):
         ids = self.convDb(cDa)  # NO activ
 
         output = {'loc': loc, 'ids': ids}
-
         return output
+    
+    def infer_image(self, img: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Inference on BGR image, assuming no pre processing
+
+        Parameters
+        ----------
+        img : np.ndarray
+            The bgr image
+        Returns
+        -------
+        tuple(np.ndarray, np.ndarray)
+            loc, ids output
+        """
+        with torch.no_grad():
+            img = pre_bgr_image(img)
+            img = torch.tensor(np.expand_dims(img, axis=0))
+            loc_hat, ids_hat = self(img).values()
+            loc_hat = loc_hat.cpu().numpy()
+            ids_hat = ids_hat.cpu().numpy()
+        return pred_argmax(loc_hat, ids_hat, dust_bin_ids=self.n_ids)
 
 
 def conv(in_planes, out_planes, kernel_size=3):
@@ -98,6 +120,12 @@ class lModel(pl.LightningModule):
         super().__init__()
         self.model = dcModel
 
+    def forward(self, x):
+        return self.model(x)
+
+    def infer_image(self, img: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        return self.model.infer_image(img)
+
     def validation_step(self, batch, batch_idx):
         # training_step defines the train loop.
         # it is independent of forward
@@ -113,15 +141,7 @@ class lModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, (loc, ids) = batch.values()
-
-        # print('BATCH shapes')
-        # print(x.shape)
-        # print(loc.shape, ids.shape)
-
         loc_hat, ids_hat = self.model(x).values()
-
-        # print('Model out shapes')
-        # print(loc_hat.shape, ids_hat.shape)
 
         loss_loc = nn.functional.cross_entropy(loc_hat, loc)
         loss_ids = nn.functional.cross_entropy(ids_hat, ids)
@@ -136,9 +156,21 @@ class lModel(pl.LightningModule):
 
 
 if __name__ == '__main__':
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = dcModel(n_ids=16)
-    model = model.to(device)
 
+    # from torchinfo import summary
     from torchinfo import summary
-    summary(model, input_size=(1, 3, 240, 320))
+    summary(model, input_size=(1, 1, 240, 320))
+
+    # Test prediction to label conversion
+    import numpy as np
+    from model_utils import pred_argmax, label_to_keypoints
+
+    with torch.no_grad():
+        loc, ids = model(torch.randn(1, 1, 240, 320)).values()
+        loc = loc.cpu().numpy()
+        ids = ids.cpu().numpy()
+
+    loc, ids = pred_argmax(loc, ids, dust_bin_ids=16)  # Hardcoded bin for testing
+    corners, ids = label_to_keypoints(loc, ids, dust_bin_ids=16)
+    print(corners.shape, ids.shape)

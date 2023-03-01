@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+from models.model_utils import label_to_keypoints
 
 
 def get_aruco_dict(board_name):
@@ -45,41 +46,21 @@ def draw_inner_corners(img: np.ndarray, corners: np.ndarray,
     return img
 
 
-def pred_to_keypoints(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: int):
-    # Steps to convert model output to keypoints:
-    # Do an argmax of ids_hat, care where != bin
-    # For each of those regions get loc_hat infos
-    # Use ids coords + argmax on loc_hat infos to select pixel
-    # TODO
-    print(ids_hat.shape)
-    np.argmax(ids_hat, axis=-1)
-
-
 def draw_circle_pred(img: np.ndarray, loc: np.ndarray, ids: np.ndarray,
-                     dust_bin_ids: int, draw_ids=False, radius=2):
-    # TODO: This assumes to have class_indices for keypoints already
-    # TODO: Conversion for actual prediction
+                     dust_bin_ids: int, draw_ids=False,
+                     radius=2, color=(255, 0, 0)):
 
-    # Find in which regions the corners are
-    roi = np.argwhere(ids != dust_bin_ids)
-    ids_found = ids[ids != dust_bin_ids]
-
-    region_pixel = loc[ids != dust_bin_ids]
-    
-    # Recover exact pixel in original resolution
-    xs = 8 * roi[:, 1] + (region_pixel % 8)
-    ys = 8 * roi[:, 0] + (region_pixel / 8).astype(int)
-
+    kps, ids = label_to_keypoints(loc, ids, dust_bin_ids)
     font = cv2.FONT_HERSHEY_SIMPLEX
     text_thickness = 1
-    for (*corner, ith) in zip(xs, ys, ids_found):
-        cv2.circle(img, corner, radius=radius, color=(255, 0, 0),
+    for corner, ith in zip(kps, ids):
+        cv2.circle(img, corner, radius=radius, color=color,
                    thickness=text_thickness)
 
         if draw_ids:
             label_size, _ = cv2.getTextSize(str(ith), font, .5, text_thickness)
             pos = (corner[0] - label_size[0] // 2, corner[1] + label_size[1] // 2 + 5)
-            cv2.putText(img, str(ith), pos, font, .3, (255, 0, 0), text_thickness)
+            cv2.putText(img, str(ith), pos, font, .3, color, text_thickness)
     return img
 
 

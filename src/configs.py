@@ -40,11 +40,11 @@ def load_configuration(path: str) -> Config:
 
 if __name__ == '__main__':
     from aruco_utils import draw_inner_corners
-    configs = load_configuration(CONFIG_PATH)
+    config = load_configuration(CONFIG_PATH)
 
     # Create an image from the gridboard
-    img, corners = board_image(configs.aruco_board, (480, 480),
-                               configs.row_count, configs.col_count)
+    img, corners = board_image(config.aruco_board, (480, 480),
+                               config.row_count, config.col_count)
     img = draw_inner_corners(img, corners, draw_ids=True)
     cv2.imshow('Gridboard', img)
     cv2.waitKey(0)

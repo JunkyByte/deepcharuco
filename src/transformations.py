@@ -13,13 +13,16 @@ class Transformation:
     """
     Class to apply augmentation on COCO dataset to train deepcharuco.
     Steps:
+    0) Choose if is a negative sample, in that case just return an augmented coco
     1) Augment board image (+ mask + corners)
     2) Histogram matching of board image given coco image
     3) Paste image on coco image
     4) Augment coco + board image
     5) Profit!
     """
-    def __init__(self, configs, seed=None):
+    def __init__(self, configs, negative_p=0.1, seed=None):
+        self.seed = seed
+        self.negative_p = negative_p
         if seed is not None:
             random.seed(seed)
             imgaug.random.seed(seed)
@@ -108,17 +111,21 @@ class Transformation:
         # Adapt coco image to input_size
         coco_img = self._transf_coco(image=coco_img)['image']
 
+        # We also generate negative instances without board
+        isnegative = random.random() < self.negative_p
+
         # Apply joint pipeline
-        res = self._transf_joint(**res, target=coco_img)
-        return {'image': res['image'], 'keypoints': res['keypoints']}  # TODO return?
+        res = self._transf_joint(**res, target=coco_img, isnegative=isnegative)
+        return {'image': res['image'], 'keypoints': res['keypoints'],
+                'isnegative': isnegative}  # TODO return?
 
 
 if __name__ == '__main__':
     from gridwindow import MagicGrid
     import configs
     from configs import load_configuration
-    configs = load_configuration(configs.CONFIG_PATH)
-    t = Transformation(configs)
+    config = load_configuration(configs.CONFIG_PATH)
+    t = Transformation(config)
 
     w = MagicGrid(640, 640, waitKey=0)
     # while True:
@@ -132,7 +139,7 @@ if __name__ == '__main__':
     #         break
 
     while True:
-        t_res = t.transform(np.random.randn(*configs.input_size[::-1], 3).astype(np.uint8))
+        t_res = t.transform(np.random.randn(*config.input_size[::-1], 3).astype(np.uint8))
         t_img, t_corners = t_res['image'], t_res['keypoints']
 
         t_img = draw_inner_corners(t_img, t_corners, draw_ids=True)
