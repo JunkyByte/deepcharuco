@@ -2,6 +2,18 @@ import numpy as np
 import cv2
 
 
+def pred_sub_pix(img, loc, ids, dust_bin_ids, region=(8, 8)):
+    kps, ids = label_to_keypoints(loc, ids, dust_bin_ids)
+    if not kps.shape[0]:
+        return kps, ids
+    return corner_sub_pix(img, kps, region=region), ids
+
+
+def corner_sub_pix(img, corners, region=(8, 8)):
+    term = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 30, 0.1)
+    return cv2.cornerSubPix(img, np.expand_dims(corners, axis=1).astype(np.float32), region, (-1, -1), term).squeeze(1)
+
+
 def pre_bgr_image(image):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)[..., np.newaxis]
     image = image.astype(np.float32)

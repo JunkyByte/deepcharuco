@@ -24,7 +24,7 @@ def board_image(board, resolution: tuple[int, int],
 
 
 def draw_inner_corners(img: np.ndarray, corners: np.ndarray,
-                       draw_ids=False, radius=2) -> np.ndarray:
+                       draw_ids=False, radius=2, color=(0, 0, 255)) -> np.ndarray:
     assert img.ndim == 3 and img.shape[-1] == 3
     img = img.copy()
 
@@ -36,13 +36,13 @@ def draw_inner_corners(img: np.ndarray, corners: np.ndarray,
 
         if corner[0] > img.shape[1] or corner[1] > img.shape[0]:
             continue
-        cv2.circle(img, tuple(corner), radius=radius, color=(0, 0, 255),
+        cv2.circle(img, tuple(corner), radius=radius, color=color,
                    thickness=text_thickness)
 
         if draw_ids:
             label_size, _ = cv2.getTextSize(str(ith), font, .5, text_thickness)
             pos = (corner[0] - label_size[0] // 2, corner[1] + label_size[1] // 2 - 10)
-            cv2.putText(img, str(ith), pos, font, .3, (0, 0, 255), text_thickness)
+            cv2.putText(img, str(ith), pos, font, .3, color, text_thickness)
     return img
 
 
