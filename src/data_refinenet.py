@@ -8,42 +8,70 @@ import numpy as np
 from torch.utils.data.dataset import Dataset
 from transformations import Transformation
 from models.model_utils import pre_bgr_image
-from gridwindow import MagicGrid
-from data import inbound
 from dataclasses import replace
 
 
-def create_sample(image: np.ndarray, keypoints: np.ndarray):
+def create_sample(image: np.ndarray, up_factor, keypoints: np.ndarray):
     # Construct corner label
-    # 1 pick a random point in the 64x64 window around the kpt TODO: check in bounds + padding (on correct side)
-    # Create 192x192 patch around that arbitrary point
-    # Rescale everything to 24x24 but keep label in 64x64
+    w_half = (192 // up_factor + 64 // up_factor) // 2  # TODO
 
-    off_x = random.randint(0, 63)  # random.randint includes BOTH endpoints
-    off_y = random.randint(0, 63)  # TODO check me
-    center_x = int(keypoints[0]) + off_x
-    center_y = int(keypoints[1]) + off_y
-    w_half = 192 // 2
+    center_x = int(keypoints[0])
+    center_y = int(keypoints[1])
 
-    patch = image[center_y - w_half:center_y + w_half, center_x - w_half:center_x + w_half]
-
-    print(patch.shape)
+    # Take a patch
+    # if up_factor > 1 we need to take full region, resize it by up_factor and then continue
+    # Take centered patch -> upscale
+    patch_og_res = image[center_y - w_half:center_y + w_half,
+                         center_x - w_half:center_x + w_half]
+    print('patch original shape', patch_og_res.shape)
+    # TODO: padding here
     # Pad each side
-    lpad = max(0, w_half - center_y)
-    rpad = max(0, w_half - center_y)
-    print(lpad)
+    # lpad = max(0, w_half - center_y)
+    # rpad = max(0, w_half - center_y)
+    # print(lpad)
     # TODO
 
-    corner = off_x + 64 * off_y  # corner offset wrt the center is the label
-    print(patch.shape)
+    # Upscale this patch
+    patch_up = cv2.resize(patch_og_res, (192 + 64, 192 + 64), cv2.INTER_CUBIC)
+
+    print('patch_up new shape', patch_up.shape)
+
+    # Now apply translation
+    off_x = random.randint(-33, 31)  # random.randint includes BOTH endpoints
+    off_y = random.randint(-33, 31)  # TODO check me
+    new_center_x = patch_up.shape[1] // 2 + off_x
+    new_center_y = patch_up.shape[0] // 2 + off_y
+
+    patch_up = cv2.circle(patch_up, (patch_up.shape[1] //2,
+                                     patch_up.shape[0]//2), radius=3,
+                          color=(255, 0, 0))
+    print(new_center_x, new_center_y)
+    patch_new = patch_up[new_center_y - 96:new_center_y + 96,
+                         new_center_x - 96:new_center_x + 96]
+    print('new patch_new after translation shape', patch_new.shape)
+    
+    patch = cv2.resize(patch_new, (24, 24), cv2.INTER_AREA)
+    print('after resize', patch.shape)
+
+    from gridwindow import MagicGrid
+    w = MagicGrid(640, 640, waitKey=0)
+
+    if w.update([patch_og_res, patch_up, patch_new, patch]) == ord('q'):
+        import sys
+        sys.exit()
+
+    corner_x = off_x + 33
+    corner_y = off_y + 33
+    corner = corner_x + 64 * corner_y  # corner offset wrt the center is the label
+    print(corner)
     return patch, corner
 
 
 class RefineDataset(Dataset):
     def __init__(self, configs, labels, images_folder, validation=False, visualize=False):
         super().__init__()
-        # Refinenet works on double resolution
-        configs = replace(configs, input_size=(320 * 12, 240 * 12))  # TODO hardcoded?
+        self.s_factor = 1
+        configs = replace(configs, input_size=(320 * self.s_factor, 240 * self.s_factor))
         self._images_folder = images_folder
         self._visualize = visualize
         with open(labels, 'r') as f:
@@ -64,23 +92,25 @@ class RefineDataset(Dataset):
 
         patch_resized = []
         corners = []
+        up_factor = 8 // self.s_factor
         for keypoint in keypoints:
-            patch, corner = create_sample(image, keypoint)
+            patch, corner = create_sample(image, up_factor, keypoint)
             corners.append(corner)
 
             if self._visualize:
-                corner_x = patch.shape[0] // 2 - corner % 64
-                corner_y = patch.shape[0] // 2 - int(corner / 64)
-                print(keypoint, corner)
+                corner_x = patch.shape[1] // 2 - (corner % 64) // 2  # ? TODO
+                corner_y = patch.shape[0] // 2 - int(corner / 64) // 2
+                print(keypoint, corner, patch.shape)
 
                 patch_copy = patch.copy()
                 cv2.circle(patch_copy, (corner_x, corner_y), radius=3, color=(0, 255, 0),
                            thickness=2)
 
-                patch_resized.append(cv2.resize(patch, (24, 24),
+                patch_resized.append(cv2.resize(patch_copy, (24, 24),
                                                 interpolation=cv2.INTER_AREA))
 
         if self._visualize:
+            from gridwindow import MagicGrid
             w = MagicGrid(640, 640, waitKey=0)
             from aruco_utils import draw_inner_corners
             image_copy = draw_inner_corners(image, [keypoint], draw_ids=True, radius=3, color=(0, 0, 255))
@@ -90,6 +120,7 @@ class RefineDataset(Dataset):
                 import sys
                 sys.exit()
 
+        # TODO
         image = pre_bgr_image(image)
         sample = {
             'image': image,
