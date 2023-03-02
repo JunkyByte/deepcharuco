@@ -50,6 +50,7 @@ def draw_circle_pred(img: np.ndarray, loc: np.ndarray, ids: np.ndarray,
                      dust_bin_ids: int, draw_ids=False,
                      radius=2, color=(255, 0, 0)):
 
+    img = img.copy()
     kps, ids = label_to_keypoints(loc, ids, dust_bin_ids)
     font = cv2.FONT_HERSHEY_SIMPLEX
     text_thickness = 1

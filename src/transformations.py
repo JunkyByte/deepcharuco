@@ -9,25 +9,45 @@ from aruco_utils import board_image, draw_inner_corners, get_board
 from custom_aug.custom_aug import PasteBoard, HistogramMatching
 
 
+def board_transformations(refinenet, input_size):
+    transl = (0, 0) if refinenet else (-0.45, 0.45)
+    scale = (1.6, 2) if refinenet else (0.25, 0.9)
+    transf = [A.PadIfNeeded(min_height=input_size[1],
+                            min_width=input_size[0], always_apply=True,
+                            border_mode=cv2.BORDER_CONSTANT, value=0,
+                            mask_value=0),
+              A.augmentations.geometric.Affine(scale=scale, rotate=(-360, 360),
+                                               shear=(-35, 35), translate_percent=transl,
+                                               keep_ratio=True, fit_output=False,
+                                               always_apply=True),
+              A.Resize(height=input_size[1], width=input_size[0],
+                       always_apply=True)]
+    return A.Compose(transf, keypoint_params=A.KeypointParams(format='xy',
+                                                              label_fields=['ids'],
+                                                              remove_invisible=False))
+
+
 class Transformation:
     """
     Class to apply augmentation on COCO dataset to train deepcharuco.
     Steps:
     0) Choose if is a negative sample, in that case just return an augmented coco
     1) Augment board image (+ mask + corners)
-    2) Histogram matching of board image given coco image
+    2) ~ Histogram matching of board image given coco image
     3) Paste image on coco image
     4) Augment coco + board image
     5) Profit!
     """
-    def __init__(self, configs, negative_p=0.1, seed=None):
+    def __init__(self, configs, negative_p=0.1, refinenet=False, seed=None):
         self.seed = seed
         self.negative_p = negative_p
         if seed is not None:
             random.seed(seed)
             imgaug.random.seed(seed)
 
-        min_r = min(configs.input_size)
+        self.refinenet = refinenet
+
+        min_r = min(configs.input_size) // 2
         board = get_board(configs)
         board_img, corners = board_image(board, (min_r, min_r),
                                          configs.row_count, configs.col_count)
@@ -38,31 +58,8 @@ class Transformation:
         self.board_mask = np.full((board_img.shape[0], board_img.shape[1]),
                                   dtype=np.uint8, fill_value=255)
 
-        board_transf = [
-            A.PadIfNeeded(min_height=configs.input_size[1],
-                          min_width=configs.input_size[0],
-                          always_apply=True, border_mode=cv2.BORDER_CONSTANT,
-                          value=0, mask_value=0),
-            A.augmentations.geometric.Affine(
-                scale=(0.2, 0.8),
-                rotate=(-360, 360),
-                shear=(-40, 40),
-                translate_percent=(-0.45, 0.45),
-                keep_ratio=True,
-                fit_output=False,
-                always_apply=True,
-            ),
-            A.Resize(height=configs.input_size[1], width=configs.input_size[0],
-                     always_apply=True)
-        ]
-
         # 1) Create transformation for board image
-        self._transf_board = A.Compose(
-            board_transf,
-            keypoint_params=A.KeypointParams(format='xy',
-                                             label_fields=['ids'],
-                                             remove_invisible=False)
-        )
+        self._transf_board = board_transformations(self.refinenet, configs.input_size)
 
         # 1bis) COCO transformation
         self._transf_coco = A.Compose([
@@ -79,7 +76,7 @@ class Transformation:
 
         # 2 + 3) Apply histogram matching then Paste transformation
         self._transf_joint = A.Compose([
-            HistogramMatching(blend_ratio=(0, 0.5), p=0.7),
+            HistogramMatching(blend_ratio=(0, 0.2), p=0.5),  # TODO might be better to remove this
             PasteBoard(always_apply=True),
 
             # Augmentations as from paper
@@ -111,8 +108,8 @@ class Transformation:
         # Adapt coco image to input_size
         coco_img = self._transf_coco(image=coco_img)['image']
 
-        # We also generate negative instances without board
-        isnegative = random.random() < self.negative_p
+        # We also generate negative instances without board (if not refinenet)
+        isnegative = False if self.refinenet else (random.random() < self.negative_p)
 
         # Apply joint pipeline
         res = self._transf_joint(**res, target=coco_img, isnegative=isnegative)

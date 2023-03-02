@@ -5,17 +5,15 @@ import numpy as np
 import pytorch_lightning as pl
 
 
-class dcModel(torch.nn.Module):
-    """ Pytorch definition of SuperPoint Network. """
-
-    def __init__(self, n_ids):
-        super(dcModel, self).__init__()
+class RefineNet(torch.nn.Module):
+    def __init__(self):
+        super(RefineNet, self).__init__()
 
         self.relu = torch.nn.ReLU(inplace=True)
         self.pool = torch.nn.MaxPool2d(kernel_size=2, stride=2, return_indices=True)
-        self.n_ids = n_ids
-        c1, c2, c3, c4, c5 = 64, 64, 128, 128, 256
-        det_h = 65
+        c1, c2, c3, c4 = 64, 64, 128, 128
+        self.last_c = 8
+        det_h = 4096
         self.reBn = True
 
         # Shared Encoder.
@@ -36,23 +34,16 @@ class dcModel(torch.nn.Module):
         self.conv4b = torch.nn.Conv2d(c4, c4, kernel_size=3, stride=1, padding=1)
         self.bn4b = nn.BatchNorm2d(c4)
         # Detector Head.
-        self.convPa = torch.nn.Conv2d(c4, c5, kernel_size=3, stride=1, padding=1)
-        self.bnPa = nn.BatchNorm2d(c5)
-        self.convPb = torch.nn.Conv2d(c5, det_h, kernel_size=1, stride=1, padding=0)
+        self.convPa = torch.nn.Conv2d(c4, self.last_c, kernel_size=3, stride=1, padding=1)
+        self.bnPa = nn.BatchNorm2d(self.last_c)
 
-        # Descriptor Head.
-        self.convDa = torch.nn.Conv2d(c4, c5, kernel_size=3, stride=1, padding=1)
-        self.bnDa = nn.BatchNorm2d(c5)
-
-        self.convDb = torch.nn.Conv2d(c5, n_ids + 1, kernel_size=1, stride=1, padding=0)
+        # self.convPb = torch.nn.Conv2d(self.last_c, det_h, kernel_size=1, stride=1, padding=0)
+        self.out = torch.nn.Linear(self.last_c * 3 * 3, det_h)
 
     def forward(self, x):
         """
         Input
-          x: Image pytorch tensor shaped N x 1 x H x W.
-        Output
-          loc: Output point pytorch tensor shaped N x 65 x H/8 x W/8.
-          ids: Output descriptor pytorch tensor shaped N x n_ids x H/8 x W/8.
+          x: Image pytorch tensor shaped N x 1 x 24 x 24.
         """
 
         # Let's stick to this version: first BN, then relu
@@ -68,15 +59,10 @@ class dcModel(torch.nn.Module):
         x = self.relu(self.bn4a(self.conv4a(x)))
         x = self.relu(self.bn4b(self.conv4b(x)))
 
-        # Detector Head.
+        # Head
         cPa = self.relu(self.bnPa(self.convPa(x)))
-        loc = self.convPb(cPa)  # NO activ
-        # Descriptor Head.
-        cDa = self.relu(self.bnDa(self.convDa(x)))
-        ids = self.convDb(cDa)  # NO activ
-
-        output = {'loc': loc, 'ids': ids}
-        return output
+        loc = self.out(cPa.view((-1, self.last_c * 3 * 3)))  # NO activ
+        return loc
 
     def infer_image(self, img: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
@@ -91,6 +77,7 @@ class dcModel(torch.nn.Module):
         tuple(np.ndarray, np.ndarray)
             loc, ids output
         """
+        raise NotImplementedError
         with torch.no_grad():
             img = pre_bgr_image(img)
             img = torch.tensor(np.expand_dims(img, axis=0))
@@ -116,7 +103,7 @@ def upconv(in_planes, out_planes):
 
 
 # define the LightningModule
-class lModel(pl.LightningModule):
+class lRefineNet(pl.LightningModule):
     def __init__(self, dcModel):
         super().__init__()
         self.model = dcModel
@@ -130,28 +117,22 @@ class lModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         # training_step defines the train loop.
         # it is independent of forward
-        x, (loc, ids) = batch.values()
-        loc_hat, ids_hat = self.model(x).values()
+        x, loc = batch.values()
+        loc_hat = self.model(x).values()
 
         loss_loc = nn.functional.cross_entropy(loc_hat, loc)
-        loss_ids = nn.functional.cross_entropy(ids_hat, ids)
 
-        self.log("val_loss_loc", loss_loc)
-        self.log("val_loss_ids", loss_ids)
-        self.log("val_loss", loss_loc + loss_ids)
+        self.log("val_refinenet_loss", loss_loc)
         return loss_loc, loss_ids
 
     def training_step(self, batch, batch_idx):
-        x, (loc, ids) = batch.values()
-        loc_hat, ids_hat = self.model(x).values()
+        x, loc = batch.values()
+        loc_hat = self.model(x).values()
 
         loss_loc = nn.functional.cross_entropy(loc_hat, loc)
-        loss_ids = nn.functional.cross_entropy(ids_hat, ids)
 
-        self.log("train_loss_loc", loss_loc)
-        self.log("train_loss_ids", loss_ids)
-        self.log("train_loss", loss_loc + loss_ids)
-        return loss_loc + loss_ids
+        self.log("train_refinenet_loss", loss_loc)
+        return loss_loc
 
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=4e-3)
@@ -159,23 +140,8 @@ class lModel(pl.LightningModule):
 
 
 if __name__ == '__main__':
-    model = dcModel(n_ids=16)
+    model = RefineNet()
 
     # from torchinfo import summary
     from torchinfo import summary
-    summary(model, input_size=(1, 1, 240, 320))
-
-    # Test prediction to label conversion
-    import numpy as np
-    from model_utils import label_to_keypoints
-
-    with torch.no_grad():
-        loc, ids = model(torch.randn(1, 1, 240, 320)).values()
-        loc = loc.cpu().numpy()
-        ids = ids.cpu().numpy()
-
-    loc, ids = pred_argmax(loc, ids, dust_bin_ids=16)  # Hardcoded bin for testing
-    loc = loc[0]  # TODO
-    ids = ids[0]
-    corners, ids = label_to_keypoints(loc, ids, dust_bin_ids=16)
-    print(corners.shape, ids.shape)
+    summary(model, input_size=(1, 1, 24, 24))
