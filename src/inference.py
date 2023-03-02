@@ -14,7 +14,7 @@ from models.net import lModel, dcModel
 
 if __name__ == '__main__':
     config = load_configuration(configs.CONFIG_PATH)
-    model = lModel.load_from_checkpoint("./reference/epoch=22-step=85031.ckpt",
+    model = lModel.load_from_checkpoint("./reference/epoch=12-step=24037.ckpt",
                                         dcModel=dcModel(config.n_ids))
     model.eval()
 
@@ -29,7 +29,7 @@ if __name__ == '__main__':
     w = MagicGrid(1200, 1200, waitKey=0)
     for ith, sample in enumerate(dataset_val):
         image, label = sample.values()
-        loc, ident = label
+        loc, ids = label
 
         # Images returned from dataset are normalized.
         img = ((image.copy() * 255) + 128).astype(np.uint8)
@@ -37,7 +37,7 @@ if __name__ == '__main__':
         infer_image = img.copy()
 
         # Draw labels in BLUE
-        # img = draw_circle_pred(img, loc, ident, config.n_ids, radius=3, draw_ids=False)
+        # img = draw_circle_pred(img, loc, ids, config.n_ids, radius=3, draw_ids=False)
 
         # Do prediction
         loc_hat, ids_hat = model.infer_image(infer_image)

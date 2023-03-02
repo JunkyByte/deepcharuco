@@ -1,5 +1,5 @@
 from torch import optim, nn
-from .model_utils import pre_bgr_image, pred_argmax
+from model_utils import pre_bgr_image, pred_argmax
 import torch
 import numpy as np
 import pytorch_lightning as pl
@@ -52,7 +52,7 @@ class dcModel(torch.nn.Module):
           x: Image pytorch tensor shaped N x 1 x H x W.
         Output
           loc: Output point pytorch tensor shaped N x 65 x H/8 x W/8.
-          ids: Output descriptor pytorch tensor shaped N x 256 x H/8 x W/8.
+          ids: Output descriptor pytorch tensor shaped N x n_ids x H/8 x W/8.
         """
 
         # Let's stick to this version: first BN, then relu
@@ -77,7 +77,7 @@ class dcModel(torch.nn.Module):
 
         output = {'loc': loc, 'ids': ids}
         return output
-    
+
     def infer_image(self, img: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Inference on BGR image, assuming no pre processing
@@ -102,7 +102,8 @@ class dcModel(torch.nn.Module):
 
 def conv(in_planes, out_planes, kernel_size=3):
     return nn.Sequential(
-        nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, padding=(kernel_size - 1) // 2, stride=2),
+        nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size,
+                  padding=(kernel_size - 1) // 2, stride=2),
         nn.ReLU(inplace=True)
     )
 
@@ -137,6 +138,7 @@ class lModel(pl.LightningModule):
 
         self.log("val_loss_loc", loss_loc)
         self.log("val_loss_ids", loss_ids)
+        self.log("val_loss", loss_loc + loss_ids)
         return loss_loc, loss_ids
 
     def training_step(self, batch, batch_idx):
@@ -148,10 +150,11 @@ class lModel(pl.LightningModule):
 
         self.log("train_loss_loc", loss_loc)
         self.log("train_loss_ids", loss_ids)
+        self.log("train_loss", loss_loc + loss_ids)
         return loss_loc + loss_ids
 
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(), lr=1e-3)
+        optimizer = optim.Adam(self.parameters(), lr=4e-3)
         return optimizer
 
 
@@ -164,7 +167,7 @@ if __name__ == '__main__':
 
     # Test prediction to label conversion
     import numpy as np
-    from model_utils import pred_argmax, label_to_keypoints
+    from model_utils import label_to_keypoints
 
     with torch.no_grad():
         loc, ids = model(torch.randn(1, 1, 240, 320)).values()
@@ -172,5 +175,7 @@ if __name__ == '__main__':
         ids = ids.cpu().numpy()
 
     loc, ids = pred_argmax(loc, ids, dust_bin_ids=16)  # Hardcoded bin for testing
+    loc = loc[0]  # TODO
+    ids = ids[0]
     corners, ids = label_to_keypoints(loc, ids, dust_bin_ids=16)
     print(corners.shape, ids.shape)
