@@ -14,7 +14,7 @@ from models.net import lModel, dcModel
 
 if __name__ == '__main__':
     config = load_configuration(configs.CONFIG_PATH)
-    model = lModel.load_from_checkpoint("./reference/epoch=12-step=24037.ckpt",
+    model = lModel.load_from_checkpoint("./reference/epoch=44-step=83205.ckpt",
                                         dcModel=dcModel(config.n_ids))
     model.eval()
 

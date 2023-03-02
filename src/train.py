@@ -35,11 +35,11 @@ if __name__ == '__main__':
     train_model = lModel(model)
 
     logger = TensorBoardLogger("tb_logs", name="deepcharuco")
-    checkpoint_callback = ModelCheckpoint(dirpath="tb_logs/checkpoints/", save_top_k=2,
+    checkpoint_callback = ModelCheckpoint(dirpath="tb_logs/checkpoints/", save_top_k=10,
                                           monitor="val_loss")
     trainer = pl.Trainer(max_epochs=60, logger=logger, accelerator="auto",
-                         callbacks=[StochasticWeightAveraging(swa_lrs=1e-3,
+                         callbacks=[StochasticWeightAveraging(swa_lrs=1e-4,
                                                               swa_epoch_start=0.8),
-                                    checkpoint_callback]) #,
-                         #resume_from_checkpoint='./tb_logs/deepcharuco/version_2/checkpoints/epoch=22-step=85031.ckpt')
+                                    checkpoint_callback],
+                         resume_from_checkpoint='./reference/epoch=44-step=83205.ckpt')
     trainer.fit(train_model, train_loader, val_loader)

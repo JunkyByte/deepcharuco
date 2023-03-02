@@ -11,7 +11,7 @@ from custom_aug.custom_aug import PasteBoard, HistogramMatching
 
 def board_transformations(refinenet, input_size):
     transl = (0, 0) if refinenet else (-0.45, 0.45)
-    scale = (1.6, 2) if refinenet else (0.25, 0.9)
+    scale = (0.5, 0.9) if refinenet else (0.25, 0.9)
     transf = [A.PadIfNeeded(min_height=input_size[1],
                             min_width=input_size[0], always_apply=True,
                             border_mode=cv2.BORDER_CONSTANT, value=0,
@@ -47,7 +47,7 @@ class Transformation:
 
         self.refinenet = refinenet
 
-        min_r = min(configs.input_size) // 2
+        min_r = min(configs.input_size)
         board = get_board(configs)
         board_img, corners = board_image(board, (min_r, min_r),
                                          configs.row_count, configs.col_count)
