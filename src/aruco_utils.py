@@ -23,7 +23,7 @@ def board_image(board, resolution: tuple[int, int],
     return img, corners.astype(int)
 
 
-def draw_inner_corners(img: np.ndarray, corners: np.ndarray,
+def draw_inner_corners(img: np.ndarray, corners: np.ndarray, ids: np.ndarray,
                        draw_ids=False, radius=2, color=(0, 0, 255)) -> np.ndarray:
     assert img.ndim == 3 and img.shape[-1] == 3
     img = img.copy()
@@ -31,7 +31,7 @@ def draw_inner_corners(img: np.ndarray, corners: np.ndarray,
     font = cv2.FONT_HERSHEY_SIMPLEX
     text_thickness = 1
 
-    for ith, corner in enumerate(corners):
+    for corner, idx in zip(corners, ids):
         corner = np.round(corner).astype(np.int)
 
         if corner[0] > img.shape[1] or corner[1] > img.shape[0]:
@@ -40,9 +40,9 @@ def draw_inner_corners(img: np.ndarray, corners: np.ndarray,
                    thickness=text_thickness)
 
         if draw_ids:
-            label_size, _ = cv2.getTextSize(str(ith), font, .5, text_thickness)
+            label_size, _ = cv2.getTextSize(str(idx), font, .5, text_thickness)
             pos = (corner[0] - label_size[0] // 2, corner[1] + label_size[1] // 2 - 10)
-            cv2.putText(img, str(ith), pos, font, .3, color, text_thickness)
+            cv2.putText(img, str(idx), pos, font, .3, color, text_thickness)
     return img
 
 

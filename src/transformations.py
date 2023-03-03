@@ -9,22 +9,49 @@ from aruco_utils import board_image, draw_inner_corners, get_board
 from custom_aug.custom_aug import PasteBoard, HistogramMatching
 
 
+# Monkey patching Albumentations 1.3.0 CoarseDropout bug :)
+# https://github.com/albumentations-team/albumentations/pull/1330
+# def apply_to_keypoints(self, keypoints, holes, **params):
+#     result = set(keypoints)
+#     for hole in holes:
+#         for kp in keypoints:
+#             if self._keypoint_in_hole(kp, hole):
+#                 result.discard(kp)
+#     return list(result)
+# A.CoarseDropout.apply_to_keypoints = apply_to_keypoints
+
+
 def board_transformations(refinenet, input_size):
     transl = (0, 0) if refinenet else (-0.45, 0.45)
-    scale = (0.5, 0.9) if refinenet else (0.25, 0.9)
+    scale = (0.3, 0.75) if refinenet else (0.25, 0.9)
+    cd_p = 0 if refinenet else 0.4
+    max_holes = 6
+    min_holes = 1
+    maxs = 64
+    mins = 16
     transf = [A.PadIfNeeded(min_height=input_size[1],
                             min_width=input_size[0], always_apply=True,
                             border_mode=cv2.BORDER_CONSTANT, value=0,
                             mask_value=0),
-              A.augmentations.geometric.Affine(scale=scale, rotate=(-360, 360),
-                                               shear=(-35, 35), translate_percent=transl,
-                                               keep_ratio=True, fit_output=False,
-                                               always_apply=True),
+              A.Affine(scale=scale, rotate=(-360, 360), shear=(-35, 35),
+                       translate_percent=transl, keep_ratio=True,
+                       fit_output=False, always_apply=True),
               A.Resize(height=input_size[1], width=input_size[0],
-                       always_apply=True)]
+                       always_apply=True),
+              A.OneOf([A.CoarseDropout(max_holes=max_holes, max_height=maxs,
+                                       max_width=maxs, min_holes=min_holes,
+                                       min_height=mins, min_width=mins,
+                                       mask_fill_value=0),
+                       *[A.CoarseDropout(max_holes=max_holes, max_height=maxs,
+                                       max_width=maxs, min_holes=min_holes,
+                                       min_height=mins, min_width=mins,
+                                       fill_value = f,
+                                       mask_fill_value=255) for f in (0, 128, 255)]
+                       ], p=cd_p)
+              ]
     return A.Compose(transf, keypoint_params=A.KeypointParams(format='xy',
                                                               label_fields=['ids'],
-                                                              remove_invisible=False))
+                                                              remove_invisible=True))
 
 
 class Transformation:
@@ -38,7 +65,7 @@ class Transformation:
     4) Augment coco + board image
     5) Profit!
     """
-    def __init__(self, configs, negative_p=0.1, refinenet=False, seed=None):
+    def __init__(self, configs, negative_p=0.05, refinenet=False, seed=None):
         self.seed = seed
         self.negative_p = negative_p
         if seed is not None:
@@ -63,33 +90,35 @@ class Transformation:
 
         # 1bis) COCO transformation
         self._transf_coco = A.Compose([
-            A.augmentations.geometric.Flip(p=0.5),
-            A.augmentations.geometric.Rotate(limit=(-180, 180), crop_border=True, p=0.5),
+            A.Flip(p=0.5),
+            A.Rotate(limit=(-180, 180), crop_border=True, p=0.5),
             A.PadIfNeeded(min_height=configs.input_size[1],
                           min_width=configs.input_size[0], always_apply=True,
                           border_mode=cv2.BORDER_CONSTANT, value=0,
                           mask_value=0),
-            A.augmentations.RandomCrop(height=configs.input_size[1],
+            A.RandomCrop(height=configs.input_size[1],
                                        width=configs.input_size[0],
                                        always_apply=True),
         ])
 
         # 2 + 3) Apply histogram matching then Paste transformation
         self._transf_joint = A.Compose([
-            HistogramMatching(blend_ratio=(0, 0.2), p=0.5),  # TODO might be better to remove this
+            # HistogramMatching(blend_ratio=(0, 0.2), p=0.5),
             PasteBoard(always_apply=True),
 
+            A.ColorJitter(brightness=0, p=0.5),
+            A.RGBShift(p=0.5),
+
             # Augmentations as from paper
-            A.augmentations.GaussNoise(p=0.5),
-            A.augmentations.MotionBlur(p=0.5),
-            A.augmentations.GaussianBlur(p=0.25),
-            A.augmentations.MultiplicativeNoise(p=0.5),
-            A.augmentations.RandomBrightnessContrast(brightness_limit=(-0.8, 0.35),
-                                                     contrast_limit=0, p=0.5),
-            # A.augmentations.RandomShadow(shadow_roi=(0, 0, 1, 1), shadow_dimension=4, p=0.3),
+            A.GaussNoise(p=0.5),
+            A.MotionBlur(blur_limit=5, p=0.5),
+            A.GaussianBlur(blur_limit=(3, 7), p=0.25),
+            A.MultiplicativeNoise(multiplier=(0.95, 1.05), p=0.5),
+            A.RandomBrightnessContrast(brightness_limit=(-0.8, 0.35),
+                                       contrast_limit=0, p=0.5),
 
         ], keypoint_params=A.KeypointParams(format='xy', label_fields=['ids'],
-                                            remove_invisible=False)
+                                            remove_invisible=True)
         )
 
     def _transform_board(self):
@@ -114,31 +143,4 @@ class Transformation:
         # Apply joint pipeline
         res = self._transf_joint(**res, target=coco_img, isnegative=isnegative)
         return {'image': res['image'], 'keypoints': res['keypoints'],
-                'isnegative': isnegative}  # TODO return?
-
-
-if __name__ == '__main__':
-    from gridwindow import MagicGrid
-    import configs
-    from configs import load_configuration
-    config = load_configuration(configs.CONFIG_PATH)
-    t = Transformation(config)
-
-    w = MagicGrid(640, 640, waitKey=0)
-    # while True:
-    #     t_res = t._transform_board()
-    #     t_img, t_corners = t_res['image'], t_res['keypoints']
-    #     t_ids, t_mask = t_res['ids'], t_res['mask']
-    #     print(t_img.shape)
-
-    #     t_img = draw_inner_corners(t_img, t_corners, draw_ids=True)
-    #     if w.update([t_img, t_mask]) == ord('q'):
-    #         break
-
-    while True:
-        t_res = t.transform(np.random.randn(*config.input_size[::-1], 3).astype(np.uint8))
-        t_img, t_corners = t_res['image'], t_res['keypoints']
-
-        t_img = draw_inner_corners(t_img, t_corners, draw_ids=True)
-        if w.update([t_img]) == ord('q'):
-            break
+                'ids': res['ids'], 'isnegative': isnegative}

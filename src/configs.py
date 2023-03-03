@@ -18,8 +18,10 @@ class Config:
 
     input_size: tuple[int, int]
     num_workers: int
-    batch_size_train: int
-    batch_size_val: int
+    bs_train: int
+    bs_train_rn: int
+    bs_val: int
+    bs_val_rn: int
     train_labels: str
     val_labels: str
     train_images: str
@@ -45,7 +47,7 @@ if __name__ == '__main__':
     # Create an image from the gridboard
     img, corners = board_image(config.aruco_board, (480, 480),
                                config.row_count, config.col_count)
-    img = draw_inner_corners(img, corners, draw_ids=True)
+    img = draw_inner_corners(img, corners, np.arange(config.n_ids), draw_ids=True)
     cv2.imshow('Gridboard', img)
     cv2.waitKey(0)
     cv2.destroyAllWindows()

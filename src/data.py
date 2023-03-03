@@ -11,8 +11,8 @@ from models.model_utils import pre_bgr_image
 from gridwindow import MagicGrid
 
 
-def create_label(image: np.ndarray, keypoints: np.ndarray, isnegative: bool,
-                 dust_bin_ids: int):
+def create_label(image: np.ndarray, keypoints: np.ndarray, kpts_ids:
+                 np.ndarray, isnegative: bool, dust_bin_ids: int):
     # Construct labels of the sample
     # loc head label
     dust_bin_loc = 8 * 8  # 8x8 spatial region (+ 1 for dust bin but we count from 0)
@@ -27,10 +27,8 @@ def create_label(image: np.ndarray, keypoints: np.ndarray, isnegative: bool,
     if isnegative:
         return loc, ids
 
-    for ith, keypoint in enumerate(keypoints):
-        if not inbound(keypoint[0], keypoint[1], image.shape[1], image.shape[0]):
-            # print(f'Keypoint {ith} is out of bound {keypoint}')
-            continue
+    for keypoint, idx in zip(keypoints, kpts_ids):
+        assert inbound(keypoint[0], keypoint[1], image.shape[1], image.shape[0]), keypoint
 
         # As we did downscaling these are float values of pixels, round them in bounds
         kx = keypoint[0]
@@ -44,12 +42,12 @@ def create_label(image: np.ndarray, keypoints: np.ndarray, isnegative: bool,
 
         # If two occurences on same location / ids
         if ids[y, x] != dust_bin_ids:
-            # print(f'Location of keypoint {ith} is already bounded to corner {ids[y, x]}')
+            # print(f'Location of keypoint {idx} is already bounded to corner {ids[y, x]}')
             if random.random() > 0.5:  # At most 2 occ. => 50% swap TODO
                 continue
 
         loc[y, x] = offset_x + 8 * offset_y  # encode position of the pixels
-        ids[y, x] = ith
+        ids[y, x] = idx
     return loc, ids
 
 
@@ -64,23 +62,23 @@ class CharucoDataset(Dataset):
         self.labels = self.labels['images']
 
         seed = 42 if validation else None
-        self.transform = Transformation(configs, negative_p=0.1, refinenet=False, seed=seed)
+        self.transform = Transformation(configs, negative_p=0.05, refinenet=False, seed=seed)
 
     def __getitem__(self, idx):
         label = self.labels[idx]
         image = cv2.imread(os.path.join(self._images_folder, label['file_name']), cv2.IMREAD_COLOR)
 
         # Apply pipeline of transformations
-        image, keypoints, isnegative = self.transform(image).values()  # TODO
+        image, keypoints, kpts_ids, isnegative = self.transform(image).values()  # TODO
 
         dust_bin_ids = self.configs.n_ids
-        loc, ids = create_label(image, keypoints, isnegative, dust_bin_ids)
+        loc, ids = create_label(image, keypoints, kpts_ids, isnegative, dust_bin_ids)
 
         if self._visualize:
             w = MagicGrid(640, 640, waitKey=0)
             from aruco_utils import draw_inner_corners, draw_circle_pred
             img = image.copy()
-            img = draw_inner_corners(img, keypoints, draw_ids=True, radius=3)
+            img = draw_inner_corners(img, keypoints, kpts_ids, draw_ids=True, radius=3)
             img = draw_circle_pred(img, loc, ids, dust_bin_ids, draw_ids=True)
 
             if w.update([img]) == ord('q'):
@@ -91,6 +89,7 @@ class CharucoDataset(Dataset):
         sample = {
             'image': image,
             'label': (loc, ids),
+            'kpt_ids': kpts_ids
         }
 
         return sample
@@ -100,7 +99,7 @@ class CharucoDataset(Dataset):
 
 
 def inbound(x, y, width, height):
-    return x > 0 and y > 0 and x < width and y < height
+    return x >= 0 and y >= 0 and x < width and y < height
 
 
 if __name__ == '__main__':

@@ -17,7 +17,7 @@ def corner_sub_pix(img, corners, region=(8, 8)):
 def pre_bgr_image(image):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)[..., np.newaxis]
     image = image.astype(np.float32)
-    image = (image - 128) / 255
+    image = (image - 128) / 255  # Well we started with this one so...
     image = image.transpose((2, 0, 1))
     return image
 
@@ -70,9 +70,13 @@ def label_to_keypoints(loc: np.ndarray, ids: np.ndarray,
     tuple(np.ndarray, np.ndarray)
         array of keypoints and associated ids
     """
-    # TODO Does this work with batched input?
-    # NO ! TODO
-    assert loc.ndim == 2
+    try:
+        loc = loc.squeeze(0)
+        ids = ids.squeeze(0)
+    except ValueError:
+        pass
+
+    assert loc.ndim == 2 and ids.ndim == 2
 
     # Find in which regions the corners are
     roi = np.argwhere(ids != dust_bin_ids)

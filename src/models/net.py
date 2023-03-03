@@ -130,7 +130,7 @@ class lModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         # training_step defines the train loop.
         # it is independent of forward
-        x, (loc, ids) = batch.values()
+        x, (loc, ids), _ = batch.values()
         loc_hat, ids_hat = self.model(x).values()
 
         loss_loc = nn.functional.cross_entropy(loc_hat, loc)
@@ -142,7 +142,7 @@ class lModel(pl.LightningModule):
         return loss_loc, loss_ids
 
     def training_step(self, batch, batch_idx):
-        x, (loc, ids) = batch.values()
+        x, (loc, ids), _ = batch.values()
         loc_hat, ids_hat = self.model(x).values()
 
         loss_loc = nn.functional.cross_entropy(loc_hat, loc)
