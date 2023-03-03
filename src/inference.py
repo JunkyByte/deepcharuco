@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
             if len(pred_ids):
                 # This is also computed twice with deepc infer_image
-                patches, _ = extract_patches(infer_image, kps)
+                patches = extract_patches(infer_image, kps)
                 patches_vis = patches.copy()
 
                 patches = np.array([pre_bgr_image(p, is_gray=True) for p in patches])
@@ -73,8 +73,8 @@ if __name__ == '__main__':
                                         config.n_ids, region=(5, 5))
 
         # Draw cv2 refined corners in green
-        # img = draw_inner_corners(img, ref_corners, pred_ids, draw_ids=False,
-        #                          radius=1, color=(0, 255, 0))
+        img = draw_inner_corners(img, ref_corners, pred_ids, draw_ids=False,
+                                 radius=1, color=(0, 255, 0))
 
         # Show result
         img = cv2.resize(img, (img.shape[1] * 2, img.shape[0] * 2), cv2.INTER_LANCZOS4)
