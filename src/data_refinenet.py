@@ -1,5 +1,6 @@
 import random
 import json
+import math
 import os
 
 import cv2
@@ -9,6 +10,32 @@ from torch.utils.data.dataset import Dataset
 from transformations import Transformation
 from model_utils import pre_bgr_image
 from dataclasses import replace
+from numba import njit
+
+
+@njit(cache=True)
+def _add_gaussian(keypoint_map, x, y, stride, sigma):
+    n_sigma = 4
+    tl = [int(x - n_sigma * sigma), int(y - n_sigma * sigma)]
+    tl[0] = max(tl[0], 0)
+    tl[1] = max(tl[1], 0)
+
+    br = [int(x + n_sigma * sigma), int(y + n_sigma * sigma)]
+    map_h, map_w = keypoint_map.shape
+    br[0] = min(br[0], map_w * stride)
+    br[1] = min(br[1], map_h * stride)
+
+    shift = stride / 2 - 0.5
+    for map_y in range(tl[1] // stride, br[1] // stride):
+        for map_x in range(tl[0] // stride, br[0] // stride):
+            d2 = (map_x * stride + shift - x) * (map_x * stride + shift - x) + \
+                (map_y * stride + shift - y) * (map_y * stride + shift - y)
+            exponent = d2 / 2 / sigma / sigma
+            if exponent > 4.6052:  # threshold, ln(100), ~0.01
+                continue
+            keypoint_map[map_y, map_x] += math.exp(-exponent)
+            if keypoint_map[map_y, map_x] > 1:
+                keypoint_map[map_y, map_x] = 1
 
 
 def create_sample(image: np.ndarray, up_factor, keypoints: np.ndarray):
@@ -23,8 +50,10 @@ def create_sample(image: np.ndarray, up_factor, keypoints: np.ndarray):
     # Take centered patch -> upscale
     patch_og_res = image[center_y - w_half:center_y + w_half,
                          center_x - w_half:center_x + w_half]
+
+    # Here apply PAD TODO
     if not patch_og_res.shape == (256 // up_factor, 256 // up_factor, 3):
-        return None, None
+        return None, None, None
 
     # Upscale this patch
     patch_up = cv2.resize(patch_og_res, (192 + 64, 192 + 64), cv2.INTER_CUBIC)
@@ -45,8 +74,11 @@ def create_sample(image: np.ndarray, up_factor, keypoints: np.ndarray):
     corner_x = -off_x + tl - 1  # Calculate the pixel 'number' (starting from 0 on top left of the 64x64 region)
     corner_y = -off_y + tl - 1  # Notice the '-' in front is because we have to invert the translation we just did
 
-    corner = corner_x + 64 * corner_y  # corner offset wrt the center is the label
-    return patch, corner
+    # We need to move to central 64x64 region position
+    corner = (corner_x, corner_y)
+    heat = np.zeros((64, 64), dtype=np.float32)
+    _add_gaussian(heat, corner[0], corner[1], 1, 2)
+    return patch, heat, corner
 
 
 class RefineDataset(Dataset):
@@ -77,31 +109,24 @@ class RefineDataset(Dataset):
 
         patch_resized = []  # Just for visualization
 
-        corners = []
+        heatmaps = []
         patches = []
         up_factor = 8 // self.s_factor
         random.shuffle(keypoints)
         for keypoint in keypoints:
-            patch, corner = create_sample(image, up_factor, keypoint)
+            patch, heat, corner = create_sample(image, up_factor, keypoint)
             if patch is None:  # Pad not implemented, sometimes there are regions not big enough
                 continue
 
             patches.append(patch)
-            corners.append(corner)
-            assert 0 <= corner < 4096, corner
+            heatmaps.append(heat)
 
             # Just visualization
             if self._visualize:
-                corner_x = corner % 64  # These are in 8x scale
-                corner_y = int(corner / 64)
-
-                # We need to move to central 64x64 region position (is offset wrt that)
-                corner_x = corner_x + 64
-                corner_y = corner_y + 64
-
                 # Visualization in original resolution is poor, visualize in 8x patch!
                 patch_vis = cv2.resize(patch, (192, 192), cv2.INTER_CUBIC)
-                patch_vis = cv2.circle(patch_vis, (corner_x, corner_y),
+                corner_vis = (corner[0] + 64, corner[1] + 64)
+                patch_vis = cv2.circle(patch_vis, (corner_vis[0], corner_vis[1]),
                                        radius=5, color=(0, 255, 0),
                                        thickness=2)
 
@@ -115,22 +140,24 @@ class RefineDataset(Dataset):
 
         if self._visualize:
             from gridwindow import MagicGrid
-            w = MagicGrid(640, 640, waitKey=0)
-            if w.update([*patch_resized]) == ord('q'):
+            w = MagicGrid(640, 640, waitKey=0, draw_outline=True)
+            heatmaps_vis = [(h * 255).astype(np.uint8) for h in heatmaps]
+            if w.update([*patch_resized, *heatmaps_vis]) == ord('q'):
                 import sys
                 sys.exit()
 
         patches = [pre_bgr_image(p) for p in patches]
+        heatmaps = [h[None, ...] for h in heatmaps]
 
         # Must have same length for each batch.
         # We duplicate samples to reach correct numbering
-        missing = self.total - len(corners)
+        missing = self.total - len(heatmaps)
         for _ in range(missing):
             idx = random.randint(0, len(patches) - 1)
             patches.append(patches[idx])
-            corners.append(corners[idx])
+            heatmaps.append(heatmaps[idx])
 
-        return patches, corners
+        return patches, heatmaps
 
     def __len__(self):
         return len(self.labels)

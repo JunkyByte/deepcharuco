@@ -11,14 +11,14 @@ from custom_aug.custom_aug import PasteBoard, HistogramMatching
 
 # Monkey patching Albumentations 1.3.0 CoarseDropout bug :)
 # https://github.com/albumentations-team/albumentations/pull/1330
-# def apply_to_keypoints(self, keypoints, holes, **params):
-#     result = set(keypoints)
-#     for hole in holes:
-#         for kp in keypoints:
-#             if self._keypoint_in_hole(kp, hole):
-#                 result.discard(kp)
-#     return list(result)
-# A.CoarseDropout.apply_to_keypoints = apply_to_keypoints
+def apply_to_keypoints(self, keypoints, holes, **params):
+    result = set(keypoints)
+    for hole in holes:
+        for kp in keypoints:
+            if self._keypoint_in_hole(kp, hole):
+                result.discard(kp)
+    return list(result)
+A.CoarseDropout.apply_to_keypoints = apply_to_keypoints
 
 
 def board_transformations(refinenet, input_size):
