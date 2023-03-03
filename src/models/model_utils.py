@@ -45,15 +45,10 @@ def extract_patches(img: np.ndarray, keypoints: np.ndarray, patch_size: int = 24
         patch_bottom = kp[1] + half_size + bottom
         patch_left = kp[0] - half_size + left
         patch_right = kp[0] + half_size + right
-
-        left_p = max(0, half_size - kp[0])
-        top_p = max(0, half_size - kp[1])
-        
         patch = padded_img[patch_top:patch_bottom, patch_left:patch_right]
         patches.append(patch)
-        paddings.append([left_p, top_p])
     
-    return patches, np.array(paddings)
+    return patches
 
 
 @njit('i8[:,::1](f4[:,:,::1])', cache=True, parallel=True)

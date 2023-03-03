@@ -57,17 +57,13 @@ if __name__ == '__main__':
 
             if len(pred_ids):
                 # This is also computed twice with deepc infer_image
-                patches, paddings = extract_patches(infer_image, kps)
+                patches, _ = extract_patches(infer_image, kps)
                 patches_vis = patches.copy()
 
                 patches = np.array([pre_bgr_image(p, is_gray=True) for p in patches])
 
                 # Extract 8x refined corners (in original resolution)
-                # TODO ACCOUNT FOR PADDINGS!
                 refined_kpts = refinenet.infer_patches(patches, kps)
-                # refined_kpts[:, 0] += paddings[:, 0]  # Remove left pad from xs
-                # refined_kpts[:, 1] += paddings[:, 1]  # Remove top pad from ys
-                print(refined_kpts)
 
                 # Draw refinenet refined corners in blue
                 img = draw_inner_corners(img, refined_kpts, pred_ids,
