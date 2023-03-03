@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+from numba import njit, prange
 
 
 def pred_sub_pix(img, loc, ids, dust_bin_ids, region=(8, 8)):
@@ -11,12 +12,63 @@ def pred_sub_pix(img, loc, ids, dust_bin_ids, region=(8, 8)):
 
 def corner_sub_pix(img, corners, region=(8, 8)):
     term = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 30, 0.1)
-    return cv2.cornerSubPix(img, np.expand_dims(corners, axis=1).astype(np.float32), region, (-1, -1), term).squeeze(1)
+    return cv2.cornerSubPix(img, np.expand_dims(corners,
+                                                axis=1).astype(np.float32),
+                            region, (-1, -1), term).squeeze(1)
 
 
-def pre_bgr_image(image):
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)[..., np.newaxis]
-    image = image.astype(np.float32)
+def extract_patches(img: np.ndarray, keypoints: np.ndarray, patch_size: int = 24) -> tuple:
+    # Compute the half size of the patch
+    half_size = patch_size // 2
+    
+    # Compute the borders to pad the image with
+    top, bottom = half_size, half_size
+    left, right = half_size, half_size
+    
+    if keypoints[:, 0].min() < half_size:
+        left = half_size - keypoints[:, 0].min()
+    if keypoints[:, 1].min() < half_size:
+        top = half_size - keypoints[:, 1].min()
+    if keypoints[:, 0].max() >= img.shape[1] - half_size:
+        right = half_size + keypoints[:, 0].max() - (img.shape[1] - 1)
+    if keypoints[:, 1].max() >= img.shape[0] - half_size:
+        bottom = half_size + keypoints[:, 1].max() - (img.shape[0] - 1)
+    
+    # Pad the image with zeros
+    padded_img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=(0, 0, 0))
+    
+    # Extract the patches centered around the keypoints
+    patches = []
+    paddings = []
+    for kp in keypoints:
+        patch_top = kp[1] - half_size + top
+        patch_bottom = kp[1] + half_size + bottom
+        patch_left = kp[0] - half_size + left
+        patch_right = kp[0] + half_size + right
+
+        left_p = max(0, half_size - kp[0])
+        top_p = max(0, half_size - kp[1])
+        
+        patch = padded_img[patch_top:patch_bottom, patch_left:patch_right]
+        patches.append(patch)
+        paddings.append([left_p, top_p])
+    
+    return patches, np.array(paddings)
+
+
+@njit('i8[:,::1](f4[:,:,::1])', cache=True, parallel=True)
+def speedy_bargmax2d(x):
+    max_indices = np.zeros((x.shape[0],2),dtype=np.int64)
+    for i in prange(x.shape[0]):
+        maxTemp = np.argmax(x[i])
+        max_indices[i] = [maxTemp // x.shape[2], maxTemp % x.shape[2]]
+    return max_indices
+
+
+def pre_bgr_image(image, is_gray=False):
+    if not is_gray:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    image = image[..., np.newaxis].astype(np.float32)
     image = (image - 128) / 255  # Well we started with this one so...
     image = image.transpose((2, 0, 1))
     return image

@@ -80,7 +80,7 @@ class dcModel(torch.nn.Module):
 
     def infer_image(self, img: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
-        Inference on BGR image, assuming no pre processing
+        Inference on BGR or gray image, assuming no pre processing
 
         Parameters
         ----------
@@ -92,7 +92,7 @@ class dcModel(torch.nn.Module):
             loc, ids output
         """
         with torch.no_grad():
-            img = pre_bgr_image(img)
+            img = pre_bgr_image(img, is_gray=img.ndim == 2)
             img = torch.tensor(np.expand_dims(img, axis=0))
             loc_hat, ids_hat = self(img).values()
             loc_hat = loc_hat.cpu().numpy()

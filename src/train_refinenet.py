@@ -11,7 +11,7 @@ import pytorch_lightning as pl
 
 if __name__ == '__main__':
     config = load_configuration(configs.CONFIG_PATH)
-    total = 1
+    total = 14
 
     dataset = RefineDataset(config, config.train_labels, config.train_images,
                             visualize=False, validation=False, total=total)
@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
     logger = TensorBoardLogger("tb_logs", name="refinenet")
     checkpoint_callback = ModelCheckpoint(dirpath="tb_logs/ckpts_refinenet/", save_top_k=10,
-                                          monitor="val_loss")
+                                          monitor="val_refinenet_loss")
     trainer = pl.Trainer(max_epochs=60, logger=logger, accelerator="auto",
                          callbacks=[checkpoint_callback]) #,
                          # resume_from_checkpoint='./reference/epoch=44-step=83205.ckpt')
