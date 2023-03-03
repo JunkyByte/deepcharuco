@@ -47,13 +47,12 @@ def extract_patches(img: np.ndarray, keypoints: np.ndarray, patch_size: int = 24
         patch_right = kp[0] + half_size + right
         patch = padded_img[patch_top:patch_bottom, patch_left:patch_right]
         patches.append(patch)
-    
     return patches
 
 
 @njit('i8[:,::1](f4[:,:,::1])', cache=True, parallel=True)
 def speedy_bargmax2d(x):
-    max_indices = np.zeros((x.shape[0],2),dtype=np.int64)
+    max_indices = np.zeros((x.shape[0], 2),dtype=np.int64)
     for i in prange(x.shape[0]):
         maxTemp = np.argmax(x[i])
         max_indices[i] = [maxTemp // x.shape[2], maxTemp % x.shape[2]]
