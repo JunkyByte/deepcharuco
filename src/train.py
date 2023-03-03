@@ -24,10 +24,10 @@ if __name__ == '__main__':
                                  visualize=False,
                                  validation=True)
 
-    train_loader = DataLoader(dataset, batch_size=config.batch_size_train,
+    train_loader = DataLoader(dataset, batch_size=config.bs_train,
                               shuffle=True, num_workers=config.num_workers,
                               pin_memory=True, prefetch_factor=10)
-    val_loader = DataLoader(dataset_val, batch_size=config.batch_size_val,
+    val_loader = DataLoader(dataset_val, batch_size=config.bs_val,
                             shuffle=False, num_workers=config.num_workers,
                             pin_memory=True, prefetch_factor=10)
 
@@ -35,11 +35,9 @@ if __name__ == '__main__':
     train_model = lModel(model)
 
     logger = TensorBoardLogger("tb_logs", name="deepcharuco")
-    checkpoint_callback = ModelCheckpoint(dirpath="tb_logs/checkpoints/", save_top_k=10,
+    checkpoint_callback = ModelCheckpoint(dirpath="tb_logs/ckpts_deepcharuco/", save_top_k=10,
                                           monitor="val_loss")
     trainer = pl.Trainer(max_epochs=60, logger=logger, accelerator="auto",
-                         callbacks=[StochasticWeightAveraging(swa_lrs=1e-4,
-                                                              swa_epoch_start=0.8),
-                                    checkpoint_callback],
-                         resume_from_checkpoint='./reference/epoch=44-step=83205.ckpt')
+                         callbacks=[checkpoint_callback]) #,
+                         # resume_from_checkpoint='./reference/epoch=44-step=83205.ckpt')
     trainer.fit(train_model, train_loader, val_loader)

@@ -6,8 +6,10 @@ square_len: 0.01
 marker_len: 0.0075
 
 input_size: [320, 240]
-batch_size_train: 32
-batch_size_val: 128
+bs_train: 32
+bs_train_rn: 64
+bs_val: 64
+bs_val_rn: 128
 num_workers: 6
 train_labels: '/home/adryw/dataset/coco25/annotations/captions_train2017.json'
 val_labels: '/home/adryw/dataset/coco25/annotations/captions_val2017.json'

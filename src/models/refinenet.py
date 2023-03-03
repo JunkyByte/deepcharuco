@@ -1,5 +1,5 @@
 from torch import optim, nn
-from models.model_utils import pre_bgr_image, pred_argmax
+from model_utils import pre_bgr_image, pred_argmax
 import torch
 import numpy as np
 import pytorch_lightning as pl
@@ -115,19 +115,27 @@ class lRefineNet(pl.LightningModule):
         return self.model.infer_image(img)
 
     def validation_step(self, batch, batch_idx):
-        # training_step defines the train loop.
-        # it is independent of forward
-        x, loc = batch.values()
-        loc_hat = self.model(x).values()
+        x, loc = batch
+        x = torch.stack(x, dim=0)
+        loc = torch.stack(loc, dim=0)
+
+        x = x.view(-1, *x.size()[-3:])
+        loc = loc.view(-1)
+        loc_hat = self.model(x)
 
         loss_loc = nn.functional.cross_entropy(loc_hat, loc)
 
         self.log("val_refinenet_loss", loss_loc)
-        return loss_loc, loss_ids
+        return loss_loc
 
     def training_step(self, batch, batch_idx):
-        x, loc = batch.values()
-        loc_hat = self.model(x).values()
+        x, loc = batch
+        x = torch.stack(x, dim=0)
+        loc = torch.stack(loc, dim=0)
+
+        x = x.view(-1, *x.size()[-3:])
+        loc = loc.view(-1)
+        loc_hat = self.model(x)
 
         loss_loc = nn.functional.cross_entropy(loc_hat, loc)
 
