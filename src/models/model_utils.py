@@ -5,6 +5,8 @@ from scipy.special import softmax
 
 
 def pred_sub_pix(img, kps, ids, region=(8, 8)):
+    if not kps.shape[0]:
+        return kps
     return corner_sub_pix(img, kps, region=region)
 
 
@@ -86,10 +88,16 @@ def pred_argmax(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: int):
     # (N, C, H/8, W/8)
     ids_argmax = np.argmax(ids_hat, axis=1, keepdims=True)
     loc_argmax = np.argmax(loc_hat, axis=1, keepdims=True)
+
+    # Mask ids_hat using loc_hat dust_bin
+    # This way we will do an argmax over best ids with valid location
+    ids_argmax[loc_argmax == 64] = dust_bin_ids
+
     return loc_argmax, ids_argmax
 
 
-def pred_to_keypoints(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: int, conf: bool=False):
+def pred_to_keypoints(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids:
+                      int, conf: bool=False):
     """
     Transform a model prediction to keypoints with ids and optionally confidences
     """
@@ -99,10 +107,15 @@ def pred_to_keypoints(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: in
 
     confidences = None
     if conf:
-        loc_hat_sm = softmax(loc_hat, axis=1)
+        ids_hat_sm = softmax(ids_hat, axis=1)
         # TODO this is confidence in the 8x8 window, is it useful?
-        print(loc_hat_sm[roi[:, 1], :, roi[:, 2], roi[:, 3]].argmax(axis=1))
-        confidences = loc_hat_sm[roi[:, 1], :, roi[:, 2], roi[:, 3]].max(axis=1)
+        # loc_hat_sm = softmax(loc_hat, axis=1)
+        loc_hat = loc_hat[:, :-1, ...].reshape((-1, 8, 8, 30, 40)).sum(axis=(1, 2))
+        loc_hat = loc_hat + loc_hat.min()
+        loc_hat = loc_hat / loc_hat.max()
+        cv2.imshow('test', (loc_hat[0] * 255).astype(np.uint8))
+        # confidences = loc_hat_sm[roi[:, 1], :, roi[:, 2], roi[:, 3]].max(axis=1)
+        confidences = ids_hat_sm[roi[:, 1], :, roi[:, 2], roi[:, 3]].max(axis=1)
     return kps, ids, confidences
 
 

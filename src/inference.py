@@ -43,8 +43,9 @@ if __name__ == '__main__':
         infer_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         loc_hat, ids_hat = deepc.infer_image(infer_image)
         kps_hat, ids_found, conf = pred_to_keypoints(loc_hat, ids_hat, config.n_ids, conf=True)
-        print(list(zip(conf, ids_found)))
 
+        print('\n'.join(f'IDX:{i} CONF:{c}' for c, i in sorted(zip(conf, ids_found),
+                                                               key=lambda x: x[1])))
         # Draw labels in BLUE
         # img = draw_circle_pred(img, loc, ids, config.n_ids, radius=3, draw_ids=False)
 
