@@ -98,6 +98,7 @@ class RefineNet(torch.nn.Module):
         -------
         tuple(np.ndarray, np.ndarray)
             corners in 8x resolution (in original image)
+            and corners in 64x64 window
         """
         with torch.no_grad():
             if patches.ndim == 3:
@@ -112,8 +113,8 @@ class RefineNet(torch.nn.Module):
 
         # Add keypoints to center on keypoints, divide by 8 to account for 8x resolution
         # Remove half left window to correct position TODO: check me (consider argmax output)
-        corners = (corners - 32) / 8 + keypoints  # Is 32 right? or 31 / 33 :)
-        return corners
+        corners_og = (corners - 32) / 8 + keypoints  # Is 32 right? or 31 / 33 :)
+        return corners_og, corners
 
 
 def conv(in_planes, out_planes, kernel_size=3):

@@ -6,7 +6,7 @@ from aruco_utils import draw_circle_pred, draw_inner_corners
 import configs
 from configs import load_configuration
 from data import CharucoDataset
-from models.model_utils import label_to_keypoints, pred_sub_pix, extract_patches, pre_bgr_image
+from models.model_utils import pred_to_keypoints, pred_sub_pix, extract_patches, pre_bgr_image
 from models.net import lModel, dcModel
 from models.refinenet import RefineNet, lRefineNet
 
@@ -19,7 +19,7 @@ if __name__ == '__main__':
 
     use_refinenet = True
     if use_refinenet:
-        refinenet = lRefineNet.load_from_checkpoint("./reference/epoch=3-step=17524.ckpt",
+        refinenet = lRefineNet.load_from_checkpoint("./reference/epoch=27-step=122668.ckpt",
                                                     refinenet=RefineNet())
         refinenet.eval()
 
@@ -42,43 +42,49 @@ if __name__ == '__main__':
         # Do prediction  # TODO: Put together inference for deepc and refinenet
         infer_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         loc_hat, ids_hat = deepc.infer_image(infer_image)
+        kps_hat, ids_found, conf = pred_to_keypoints(loc_hat, ids_hat, config.n_ids, conf=True)
+        print(list(zip(conf, ids_found)))
 
         # Draw labels in BLUE
         # img = draw_circle_pred(img, loc, ids, config.n_ids, radius=3, draw_ids=False)
 
         # Draw predictions in RED  # TODO fix this
-        img = draw_circle_pred(img, loc_hat, ids_hat, config.n_ids, radius=3,
-                               draw_ids=True, color=(0, 0, 255))
+        img = draw_inner_corners(img, kps_hat, ids_found, radius=3,
+                                 draw_ids=True, color=(0, 0, 255))
 
         patches = []
         if use_refinenet:
             # TODO: This is computed twice with pred_sub_pix
-            kps, pred_ids = label_to_keypoints(loc_hat, ids_hat, config.n_ids)
-
-            if len(pred_ids):
+            if len(ids_found):
                 # This is also computed twice with deepc infer_image
-                patches = extract_patches(infer_image, kps)
-                patches_vis = patches.copy()
+                patches = extract_patches(infer_image, kps_hat)
+                patches_vis = [cv2.cvtColor(p, cv2.COLOR_GRAY2BGR) for p in patches]
 
                 patches = np.array([pre_bgr_image(p, is_gray=True) for p in patches])
 
                 # Extract 8x refined corners (in original resolution)
-                refined_kpts = refinenet.infer_patches(patches, kps)
+                refined_kpts_og, refined_kpts_win = refinenet.infer_patches(patches, kps_hat)
+
+                for ith, kpt in enumerate(refined_kpts_win):
+                    kpt = np.round(kpt / 8 + 8).astype(int)
+                    patches_vis[ith] = cv2.circle(patches_vis[ith], (kpt[0], kpt[1]),
+                                                  radius=1, thickness=2, color=(0, 255, 0))
 
                 # Draw refinenet refined corners in blue
-                img = draw_inner_corners(img, refined_kpts, pred_ids,
+                img = draw_inner_corners(img, refined_kpts_og, ids_found,
                                          draw_ids=False, radius=1, color=(255, 0, 0))
 
-        ref_corners, pred_ids = pred_sub_pix(infer_image, loc_hat, ids_hat,
-                                        config.n_ids, region=(5, 5))
+        ref_kps = pred_sub_pix(infer_image, kps_hat, ids_found, region=(5, 5))
 
         # Draw cv2 refined corners in green
-        img = draw_inner_corners(img, ref_corners, pred_ids, draw_ids=False,
+        img = draw_inner_corners(img, ref_kps, ids_found, draw_ids=False,
                                  radius=1, color=(0, 255, 0))
 
         # Show result
         img = cv2.resize(img, (img.shape[1] * 2, img.shape[0] * 2), cv2.INTER_LANCZOS4)
-        if w.update([img, *[p for p in patches_vis]]) == ord('q'):
+        patches_vis = [cv2.resize(p, (p.shape[1] * 2, p.shape[0] * 2), cv2.INTER_LANCZOS4)
+                       for p in patches_vis]
+        if w.update([img, *patches_vis]) == ord('q'):
             break
 
     # Inference test on custom image
@@ -93,7 +99,7 @@ if __name__ == '__main__':
         image = draw_circle_pred(image, loc_hat, ids_hat, config.n_ids,
                                  radius=1, draw_ids=True, color=(0, 0, 255))
 
-        kps, _ = label_to_keypoints(loc_hat, ids_hat, config.n_ids)
+        kps, _ = pred_to_keypoints(loc_hat, ids_hat, config.n_ids)
         patches = [image[y - 8: y + 8, x - 8: x + 8] for (x, y) in kps]
 
         if w.update([image, *patches]) == ord('q'):
