@@ -3,6 +3,16 @@ import cv2
 from models.model_utils import label_to_keypoints
 
 
+def get_board(configs):
+    board = cv2.aruco.CharucoBoard_create(
+        squaresX=configs.col_count,
+        squaresY=configs.row_count,
+        squareLength=configs.square_len,
+        markerLength=configs.marker_len,
+        dictionary=get_aruco_dict(configs.board_name))
+    return board
+
+
 def get_aruco_dict(board_name):
     return cv2.aruco.Dictionary_get(getattr(cv2.aruco, board_name))
 
@@ -53,9 +63,9 @@ def draw_circle_pred(img: np.ndarray, loc: np.ndarray, ids: np.ndarray,
     Assumes single prediction
     """
     assert loc.ndim == 2 and ids.ndim == 2
-
     img = img.copy()
-    kps, ids, _ = label_to_keypoints(loc[None, None, ...], ids[None, None, ...], dust_bin_ids)
+
+    kps, ids = label_to_keypoints(loc[None, None, ...], ids[None, None, ...], dust_bin_ids)
     font = cv2.FONT_HERSHEY_SIMPLEX
     text_thickness = 1
     for corner, ith in zip(kps, ids):
@@ -68,13 +78,3 @@ def draw_circle_pred(img: np.ndarray, loc: np.ndarray, ids: np.ndarray,
             cv2.putText(img, str(ith), pos, font, .3, (0, 255, 255), text_thickness)
             # TODO colors
     return img
-
-
-def get_board(configs):
-    board = cv2.aruco.CharucoBoard_create(
-        squaresX=configs.col_count,
-        squaresY=configs.row_count,
-        squareLength=configs.square_len,
-        markerLength=configs.marker_len,
-        dictionary=get_aruco_dict(configs.board_name))
-    return board

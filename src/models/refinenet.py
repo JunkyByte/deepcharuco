@@ -86,7 +86,7 @@ class RefineNet(torch.nn.Module):
     def infer_patches(self, patches: np.ndarray,
                       keypoints: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
-        Inference on 24x24 patches, assuming no pre processing
+        Inference on 24x24 patches, assuming pre processing
 
         Parameters
         ----------
