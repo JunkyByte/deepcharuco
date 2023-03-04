@@ -80,7 +80,7 @@ class dcModel(torch.nn.Module):
 
     def infer_image(self, img: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
-        Inference on BGR or gray image, assuming no pre processing
+        Inference on a single BGR or gray image, assuming no pre processing
 
         Parameters
         ----------
@@ -97,7 +97,7 @@ class dcModel(torch.nn.Module):
             loc_hat, ids_hat = self(img).values()
             loc_hat = loc_hat.cpu().numpy()
             ids_hat = ids_hat.cpu().numpy()
-        return pred_argmax(loc_hat, ids_hat, dust_bin_ids=self.n_ids)
+        return loc_hat, ids_hat
 
 
 def conv(in_planes, out_planes, kernel_size=3):

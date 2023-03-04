@@ -28,7 +28,7 @@ def draw_inner_corners(img: np.ndarray, corners: np.ndarray, ids: np.ndarray,
     assert img.ndim == 3 and img.shape[-1] == 3
     img = img.copy()
 
-    font = cv2.FONT_HERSHEY_SIMPLEX
+    font = cv2.FONT_HERSHEY_COMPLEX_SMALL
     text_thickness = 1
 
     for corner, idx in zip(corners, ids):
@@ -41,17 +41,21 @@ def draw_inner_corners(img: np.ndarray, corners: np.ndarray, ids: np.ndarray,
 
         if draw_ids:
             label_size, _ = cv2.getTextSize(str(idx), font, .5, text_thickness)
-            pos = (corner[0] - label_size[0] // 2 + 3, corner[1] + label_size[1] // 2 - 3)
-            cv2.putText(img, str(idx), pos, font, .3, color, text_thickness)
+            pos = (corner[0] - label_size[0] // 2 - 7, corner[1] + label_size[1] // 2 - 7)
+            cv2.putText(img, str(idx), pos, font, .45, (0, 255, 0), text_thickness)
     return img
 
 
 def draw_circle_pred(img: np.ndarray, loc: np.ndarray, ids: np.ndarray,
                      dust_bin_ids: int, draw_ids=False,
                      radius=2, color=(255, 0, 0)):
+    """
+    Assumes single prediction
+    """
+    assert loc.ndim == 2 and ids.ndim == 2
 
     img = img.copy()
-    kps, ids = label_to_keypoints(loc, ids, dust_bin_ids)
+    kps, ids, _ = label_to_keypoints(loc[None, None, ...], ids[None, None, ...], dust_bin_ids)
     font = cv2.FONT_HERSHEY_SIMPLEX
     text_thickness = 1
     for corner, ith in zip(kps, ids):
@@ -61,7 +65,8 @@ def draw_circle_pred(img: np.ndarray, loc: np.ndarray, ids: np.ndarray,
         if draw_ids:
             label_size, _ = cv2.getTextSize(str(ith), font, .5, text_thickness)
             pos = (corner[0] - label_size[0] // 2 + 3, corner[1] + label_size[1] // 2 + 3)
-            cv2.putText(img, str(ith), pos, font, .3, color, text_thickness)
+            cv2.putText(img, str(ith), pos, font, .3, (0, 255, 255), text_thickness)
+            # TODO colors
     return img
 
 
