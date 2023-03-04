@@ -1,12 +1,9 @@
 import numpy as np
 import cv2
 from numba import njit, prange
-from scipy.special import softmax
 
 
 def pred_sub_pix(img, kps, ids, region=(8, 8)):
-    if not kps.shape[0]:
-        return kps
     return corner_sub_pix(img, kps, region=region)
 
 
@@ -90,33 +87,19 @@ def pred_argmax(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: int):
     loc_argmax = np.argmax(loc_hat, axis=1, keepdims=True)
 
     # Mask ids_hat using loc_hat dust_bin
-    # This way we will do an argmax over best ids with valid location
+    # This way we will do an argmax only over best ids with valid location
     ids_argmax[loc_argmax == 64] = dust_bin_ids
-
     return loc_argmax, ids_argmax
 
 
-def pred_to_keypoints(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids:
-                      int, conf: bool=False):
+def pred_to_keypoints(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: int):
     """
     Transform a model prediction to keypoints with ids and optionally confidences
     """
     assert loc_hat.ndim == 4 and ids_hat.ndim == 4
     loc_argmax, ids_argmax = pred_argmax(loc_hat, ids_hat, dust_bin_ids)
-    kps, ids, roi = label_to_keypoints(loc_argmax, ids_argmax, dust_bin_ids)
-
-    confidences = None
-    if conf:
-        ids_hat_sm = softmax(ids_hat, axis=1)
-        # TODO this is confidence in the 8x8 window, is it useful?
-        # loc_hat_sm = softmax(loc_hat, axis=1)
-        loc_hat = loc_hat[:, :-1, ...].reshape((-1, 8, 8, 30, 40)).sum(axis=(1, 2))
-        loc_hat = loc_hat + loc_hat.min()
-        loc_hat = loc_hat / loc_hat.max()
-        cv2.imshow('test', (loc_hat[0] * 255).astype(np.uint8))
-        # confidences = loc_hat_sm[roi[:, 1], :, roi[:, 2], roi[:, 3]].max(axis=1)
-        confidences = ids_hat_sm[roi[:, 1], :, roi[:, 2], roi[:, 3]].max(axis=1)
-    return kps, ids, confidences
+    kps, ids = label_to_keypoints(loc_argmax, ids_argmax, dust_bin_ids)
+    return kps, ids
 
 
 def label_to_keypoints(loc: np.ndarray, ids: np.ndarray, dust_bin_ids: int):
@@ -147,4 +130,4 @@ def label_to_keypoints(loc: np.ndarray, ids: np.ndarray, dust_bin_ids: int):
     # Recover exact pixel in original resolution
     xs = 8 * roi[:, -1] + (region_pixel % 8)
     ys = 8 * roi[:, -2] + (region_pixel / 8).astype(int)
-    return np.c_[xs, ys], ids_found, roi
+    return np.c_[xs, ys], ids_found
