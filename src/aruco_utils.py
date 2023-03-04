@@ -41,7 +41,7 @@ def draw_inner_corners(img: np.ndarray, corners: np.ndarray, ids: np.ndarray,
 
         if draw_ids:
             label_size, _ = cv2.getTextSize(str(idx), font, .5, text_thickness)
-            pos = (corner[0] - label_size[0] // 2 - 7, corner[1] + label_size[1] // 2 - 7)
+            pos = (corner[0] - label_size[0] // 2 - 7, corner[1] + label_size[1] // 2 - 3)
             cv2.putText(img, str(idx), pos, font, .45, (0, 255, 0), text_thickness)
     return img
 
