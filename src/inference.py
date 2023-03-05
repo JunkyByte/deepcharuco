@@ -96,7 +96,7 @@ if __name__ == '__main__':
 
     use_refinenet = True
     if use_refinenet:
-        refinenet = lRefineNet.load_from_checkpoint("./reference/epoch=48-step=214669.ckpt",
+        refinenet = lRefineNet.load_from_checkpoint("./reference/first-refinenet-epoch-59-step=282k.ckpt",
                                                     refinenet=RefineNet())
         refinenet.eval()
 
@@ -109,7 +109,7 @@ if __name__ == '__main__':
 
     w = MagicGrid(1000, 1000, waitKey=0)
     for ith, sample in enumerate(dataset_val):
-        image, label, kpts_ids = sample.values()
+        image, label = sample.values()
         loc, ids = label
 
         # Images returned from dataset are normalized.

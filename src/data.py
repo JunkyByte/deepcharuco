@@ -89,7 +89,6 @@ class CharucoDataset(Dataset):
         sample = {
             'image': image,
             'label': (loc, ids),
-            'kpt_ids': kpts_ids
         }
 
         return sample
