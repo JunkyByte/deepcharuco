@@ -38,12 +38,12 @@ def _add_gaussian(keypoint_map, x, y, stride, sigma):
                 keypoint_map[map_y, map_x] = 1
 
 
-def create_sample(image: np.ndarray, up_factor, keypoints: np.ndarray):
+def create_sample(image: np.ndarray, up_factor, keypoint: tuple):
     # Construct corner label
     w_half = (192 + 64) // (2 * up_factor)  # TODO
 
-    center_x = int(keypoints[0])
-    center_y = int(keypoints[1])
+    center_x = int(keypoint[0])
+    center_y = int(keypoint[1])
 
     # Take a patch
     # if up_factor > 1 we need to take full region, resize it by up_factor and then continue
@@ -58,21 +58,37 @@ def create_sample(image: np.ndarray, up_factor, keypoints: np.ndarray):
     # Upscale this patch
     patch_up = cv2.resize(patch_og_res, (192 + 64, 192 + 64), cv2.INTER_CUBIC)
 
+    # We use subpix accuracy to get the position of the corner in the
+    # patch_up. Given that and rounded to int we can apply translation
+    # and then calculate new_center using the actual subpixel position
+    # (rounded) instead of using the patch_up.shape // 2
+    from models.model_utils import corner_sub_pix
+    patch_up_gray = cv2.cvtColor(patch_up, cv2.COLOR_BGR2GRAY)
+    ref_corner = corner_sub_pix(patch_up_gray, np.array((patch_up.shape[1] // 2,
+                                                        patch_up.shape[0] // 2)).reshape((-1, 2)), region=(up_factor, up_factor)).squeeze(0)
+    ref_corner = np.round(ref_corner).astype(int)
+
+    corr_x = ref_corner[0] - patch_up.shape[1] // 2
+    corr_y = ref_corner[1] - patch_up.shape[0] // 2
+    print(ref_corner, corr_x, corr_y)
+
     # Now apply translation
     tl = 32
-    off_x = random.randint(-tl, tl - 1)  # random.randint includes BOTH endpoints
-    off_y = random.randint(-tl, tl - 1)  # TODO check me, also use gaussian? cornerSubPix?
+    off_x = random.randint(-tl - corr_x, tl - 1 - corr_x)  # random.randint includes BOTH endpoints
+    off_y = random.randint(-tl - corr_y, tl - 1 - corr_y)
 
-    new_center_x = patch_up.shape[1] // 2 + off_x
-    new_center_y = patch_up.shape[0] // 2 + off_y
+    new_center_x = ref_corner[0] + off_x
+    new_center_y = ref_corner[1] + off_y
 
     patch_new = patch_up[new_center_y - 96:new_center_y + 96,
                          new_center_x - 96:new_center_x + 96]
     patch = cv2.resize(patch_new, (24, 24), cv2.INTER_AREA)
 
-    # TODO: Notice the -1 check!
-    corner_x = -off_x + tl - 1  # Calculate the pixel 'number' (starting from 0 on top left of the 64x64 region)
-    corner_y = -off_y + tl - 1  # Notice the '-' in front is because we have to invert the translation we just did
+    # Why -1? If off is -32 -> -(-32) + 32 - 1 = 63 (pixels range from 0 to 63 included)
+    corner_x = -off_x + tl - 1 - corr_x # Calculate the pixel 'number' (starting from 0 on top left)
+    corner_y = -off_y + tl - 1 - corr_y # We have to invert the translation we just did
+    print(corner_x, corner_y)
+    assert 0 <= corner_x < 64 and 0 <= corner_y < 64
 
     # We need to move to central 64x64 region position
     corner = (corner_x, corner_y)

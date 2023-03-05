@@ -114,7 +114,7 @@ class RefineNet(torch.nn.Module):
 
         # Add keypoints to center on keypoints, divide by 8 to account for 8x resolution
         # Remove half left window to correct position TODO: check me (consider argmax output)
-        corners_og = (corners - 32) / 8 + keypoints  # Is 32 right? or 31 / 33 :)
+        corners_og = (corners - 32) / 8 + keypoints  # Is 32 right? :)
         return corners_og, corners
 
 

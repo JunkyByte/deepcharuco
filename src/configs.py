@@ -1,6 +1,7 @@
 import yaml
 import cv2
 from aruco_utils import get_board, board_image
+from typing import Optional
 from pydantic.dataclasses import dataclass
 
 
@@ -28,7 +29,7 @@ class Config:
     val_images: str
 
     # Self populated
-    n_ids: int = None
+    n_ids: Optional[int] = None
 
     def __post_init__(self):
         self.n_ids = (self.row_count - 1) * (self.col_count - 1)
