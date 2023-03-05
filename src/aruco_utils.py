@@ -42,7 +42,7 @@ def draw_inner_corners(img: np.ndarray, corners: np.ndarray, ids: np.ndarray,
     text_thickness = 1
 
     for corner, idx in zip(corners, ids):
-        corner = np.round(corner).astype(np.int)
+        corner = np.round(corner).astype(int)
 
         if corner[0] > img.shape[1] or corner[1] > img.shape[0]:
             continue

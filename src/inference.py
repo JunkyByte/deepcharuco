@@ -67,7 +67,7 @@ def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
                                      draw_ids=False, radius=1, color=(0, 255, 255))
 
     if cv2_subpix:
-        ref_kps_cv2 = pred_sub_pix(infer_image, kps_hat, ids_found, region=(5, 5))
+        ref_kps_cv2 = pred_sub_pix(infer_image, kps_hat, ids_found, region=(6, 6))
         # Draw cv2 refined corners in green
         img = draw_inner_corners(img, ref_kps_cv2, ids_found, draw_ids=False,
                                  radius=1, color=(0, 255, 0))

@@ -14,7 +14,7 @@ def corner_sub_pix(img, corners, region=(8, 8)):
                             region, (-1, -1), term).squeeze(1)
 
 
-def extract_patches(img: np.ndarray, keypoints: np.ndarray, patch_size: int = 24) -> tuple:
+def extract_patches(img: np.ndarray, keypoints: np.ndarray, patch_size: int = 24) -> list:
     # Compute the half size of the patch
     half_size = patch_size // 2
 
