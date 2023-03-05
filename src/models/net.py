@@ -1,13 +1,13 @@
 from torch import optim, nn
-from model_utils import pre_bgr_image, pred_argmax
-from metrics import ratio_match, l2_pixels
+from model_utils import pre_bgr_image
+from metrics import DC_Metrics
 import torch
 import numpy as np
 import pytorch_lightning as pl
 
 
 class dcModel(torch.nn.Module):
-    """ Pytorch definition of SuperPoint Network. """
+    """ Pytorch definition of DeepCharuco Network. """
 
     def __init__(self, n_ids):
         super(dcModel, self).__init__()
@@ -121,8 +121,7 @@ class lModel(pl.LightningModule):
     def __init__(self, dcModel):
         super().__init__()
         self.model = dcModel
-        self.l2_pixels = l2_pixels(self.model.n_ids)
-        self.ratio = ratio_match(self.model.n_ids)
+        self.dc_metrics = DC_Metrics(self.model.n_ids)
 
     def forward(self, x):
         return self.model(x)
@@ -143,10 +142,9 @@ class lModel(pl.LightningModule):
         self.log("val_loss_ids", loss_ids)
         self.log("val_loss", loss_loc + loss_ids)
 
-        self.l2_pixels((loc_hat, ids_hat), (loc, ids))
-        self.log("val_l2_pixels", self.l2_pixels)
-        self.ratio((loc_hat, ids_hat), (loc, ids))
-        self.log("val_match_ratio", self.ratio)
+        dist, ratio = self.dc_metrics((loc_hat, ids_hat), (loc, ids))
+        self.log("val_l2_pixels", dist)
+        self.log("val_match_ratio", ratio)
         return loss_loc + loss_ids
 
     def training_step(self, batch, batch_idx):
