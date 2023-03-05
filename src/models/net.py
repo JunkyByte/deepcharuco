@@ -1,5 +1,6 @@
 from torch import optim, nn
 from model_utils import pre_bgr_image, pred_argmax
+from metrics import ratio_match, l2_pixels
 import torch
 import numpy as np
 import pytorch_lightning as pl
@@ -120,6 +121,8 @@ class lModel(pl.LightningModule):
     def __init__(self, dcModel):
         super().__init__()
         self.model = dcModel
+        self.l2_pixels = l2_pixels(self.model.n_ids)
+        self.ratio = ratio_match(self.model.n_ids)
 
     def forward(self, x):
         return self.model(x)
@@ -130,7 +133,7 @@ class lModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         # training_step defines the train loop.
         # it is independent of forward
-        x, (loc, ids), _ = batch.values()
+        x, (loc, ids) = batch.values()
         loc_hat, ids_hat = self.model(x).values()
 
         loss_loc = nn.functional.cross_entropy(loc_hat, loc)
@@ -139,10 +142,15 @@ class lModel(pl.LightningModule):
         self.log("val_loss_loc", loss_loc)
         self.log("val_loss_ids", loss_ids)
         self.log("val_loss", loss_loc + loss_ids)
-        return loss_loc, loss_ids
+
+        self.l2_pixels((loc_hat, ids_hat), (loc, ids))
+        self.log("val_l2_pixels", self.l2_pixels)
+        self.ratio((loc_hat, ids_hat), (loc, ids))
+        self.log("val_match_ratio", self.ratio)
+        return loss_loc + loss_ids
 
     def training_step(self, batch, batch_idx):
-        x, (loc, ids), _ = batch.values()
+        x, (loc, ids) = batch.values()
         loc_hat, ids_hat = self.model(x).values()
 
         loss_loc = nn.functional.cross_entropy(loc_hat, loc)
@@ -154,7 +162,7 @@ class lModel(pl.LightningModule):
         return loss_loc + loss_ids
 
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(), lr=4e-3)
+        optimizer = optim.Adam(self.parameters(), lr=5e-3)
         return optimizer
 
 
@@ -164,18 +172,3 @@ if __name__ == '__main__':
     # from torchinfo import summary
     from torchinfo import summary
     summary(model, input_size=(1, 1, 240, 320))
-
-    # Test prediction to label conversion
-    import numpy as np
-    from model_utils import label_to_keypoints
-
-    with torch.no_grad():
-        loc, ids = model(torch.randn(1, 1, 240, 320)).values()
-        loc = loc.cpu().numpy()
-        ids = ids.cpu().numpy()
-
-    loc, ids = pred_argmax(loc, ids, dust_bin_ids=16)  # Hardcoded bin for testing
-    loc = loc[0]  # TODO
-    ids = ids[0]
-    corners, ids = label_to_keypoints(loc, ids, dust_bin_ids=16)
-    print(corners.shape, ids.shape)

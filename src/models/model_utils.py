@@ -83,8 +83,8 @@ def pred_argmax(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: int):
         ids_hat = np.expand_dims(ids_hat, axis=0)
 
     # (N, C, H/8, W/8)
-    ids_argmax = np.argmax(ids_hat, axis=1, keepdims=True)
-    loc_argmax = np.argmax(loc_hat, axis=1, keepdims=True)
+    ids_argmax = np.argmax(ids_hat, axis=1)
+    loc_argmax = np.argmax(loc_hat, axis=1)
 
     # Mask ids_hat using loc_hat dust_bin
     # This way we will do an argmax only over best ids with valid location
@@ -96,6 +96,7 @@ def pred_to_keypoints(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: in
     """
     Transform a model prediction to keypoints with ids and optionally confidences
     """
+    print(loc_hat.shape, ids_hat.shape)
     assert loc_hat.ndim == 4 and ids_hat.ndim == 4
     loc_argmax, ids_argmax = pred_argmax(loc_hat, ids_hat, dust_bin_ids)
     kps, ids = label_to_keypoints(loc_argmax, ids_argmax, dust_bin_ids)
@@ -119,7 +120,7 @@ def label_to_keypoints(loc: np.ndarray, ids: np.ndarray, dust_bin_ids: int):
     tuple(np.ndarray, np.ndarray)
         array of keypoints and associated ids
     """
-    assert loc.ndim == 4 and ids.ndim == 4
+    assert loc.ndim == 3 and ids.ndim == 3
 
     # Find in which regions the corners are
     mask = ids != dust_bin_ids

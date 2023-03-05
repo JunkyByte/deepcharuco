@@ -37,7 +37,14 @@ if __name__ == '__main__':
     logger = TensorBoardLogger("tb_logs", name="deepcharuco")
     checkpoint_callback = ModelCheckpoint(dirpath="tb_logs/ckpts_deepcharuco/", save_top_k=10,
                                           monitor="val_loss")
-    trainer = pl.Trainer(max_epochs=60, logger=logger, accelerator="auto",
+    trainer = pl.Trainer(max_epochs=100, logger=logger, accelerator="auto",
                          callbacks=[checkpoint_callback]) #,
                          # resume_from_checkpoint='./reference/epoch=44-step=83205.ckpt')
+
+    # Run learning rate finder
+    # lr_finder = trainer.tuner.lr_find(train_model, train_dataloaders=train_loader)
+    # print(lr_finder.results)
+    # print(lr_finder.suggestion())
+    # assert False
+
     trainer.fit(train_model, train_loader, val_loader)

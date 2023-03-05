@@ -3,10 +3,8 @@ import albumentations as A
 import numpy as np
 import cv2
 import random
-
-from aruco_utils import board_image, draw_inner_corners, get_board
-
-from custom_aug.custom_aug import PasteBoard, HistogramMatching
+from aruco_utils import board_image, get_board
+from custom_aug.custom_aug import PasteBoard
 
 
 # Monkey patching Albumentations 1.3.0 CoarseDropout bug :)
@@ -18,7 +16,7 @@ def apply_to_keypoints(self, keypoints, holes, **params):
             if self._keypoint_in_hole(kp, hole):
                 result.discard(kp)
     return list(result)
-A.CoarseDropout.apply_to_keypoints = apply_to_keypoints
+A.CoarseDropout.apply_to_keypoints = apply_to_keypoints  # noqa: E305
 
 
 def board_transformations(refinenet, input_size):
@@ -43,10 +41,10 @@ def board_transformations(refinenet, input_size):
                                        min_height=mins, min_width=mins,
                                        mask_fill_value=0),
                        *[A.CoarseDropout(max_holes=max_holes, max_height=maxs,
-                                       max_width=maxs, min_holes=min_holes,
-                                       min_height=mins, min_width=mins,
-                                       fill_value = f,
-                                       mask_fill_value=255) for f in (0, 128, 255)]
+                                         max_width=maxs, min_holes=min_holes,
+                                         min_height=mins, min_width=mins,
+                                         fill_value = f, mask_fill_value=255)
+                         for f in (0, 128, 255)]
                        ], p=cd_p)
               ]
     return A.Compose(transf, keypoint_params=A.KeypointParams(format='xy',
@@ -97,13 +95,11 @@ class Transformation:
                           border_mode=cv2.BORDER_CONSTANT, value=0,
                           mask_value=0),
             A.RandomCrop(height=configs.input_size[1],
-                                       width=configs.input_size[0],
-                                       always_apply=True),
+                         width=configs.input_size[0], always_apply=True),
         ])
 
         # 2 + 3) Apply histogram matching then Paste transformation
         self._transf_joint = A.Compose([
-            # HistogramMatching(blend_ratio=(0, 0.2), p=0.5),
             PasteBoard(always_apply=True),
 
             A.ColorJitter(brightness=0, p=0.5),
