@@ -1,5 +1,6 @@
 from torch import optim, nn
 from model_utils import pre_bgr_image, speedy_bargmax2d
+from metrics import Refinenet_Metrics
 import torch
 import numpy as np
 import pytorch_lightning as pl
@@ -137,6 +138,7 @@ class lRefineNet(pl.LightningModule):
     def __init__(self, refinenet):
         super().__init__()
         self.model = refinenet
+        self.rn_metrics = Refinenet_Metrics()
 
     def forward(self, x):
         return self.model(x)
@@ -156,6 +158,8 @@ class lRefineNet(pl.LightningModule):
 
         loss_loc = nn.functional.mse_loss(loc_hat, loc)
 
+        dist = self.rn_metrics(loc_hat, loc)
+        self.log("val_dist_refinenet_pixels", dist)
         self.log("val_refinenet_loss", loss_loc)
         return loss_loc
 

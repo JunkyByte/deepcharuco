@@ -96,7 +96,6 @@ def pred_to_keypoints(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: in
     """
     Transform a model prediction to keypoints with ids and optionally confidences
     """
-    print(loc_hat.shape, ids_hat.shape)
     assert loc_hat.ndim == 4 and ids_hat.ndim == 4
     loc_argmax, ids_argmax = pred_argmax(loc_hat, ids_hat, dust_bin_ids)
     kps, ids = label_to_keypoints(loc_argmax, ids_argmax, dust_bin_ids)
