@@ -3,8 +3,8 @@ import cv2
 from numba import njit, prange
 
 
-def pred_sub_pix(img, kps, ids, region=(8, 8)):
-    return corner_sub_pix(img, kps, region=region)
+def pred_sub_pix(img, kpts, ids, region=(8, 8)):
+    return corner_sub_pix(img, kpts, region=region)
 
 
 def corner_sub_pix(img, corners, region=(8, 8)):
@@ -98,8 +98,8 @@ def pred_to_keypoints(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: in
     """
     assert loc_hat.ndim == 4 and ids_hat.ndim == 4
     loc_argmax, ids_argmax = pred_argmax(loc_hat, ids_hat, dust_bin_ids)
-    kps, ids = label_to_keypoints(loc_argmax, ids_argmax, dust_bin_ids)
-    return kps, ids
+    kpts, ids = label_to_keypoints(loc_argmax, ids_argmax, dust_bin_ids)
+    return kpts, ids
 
 
 def label_to_keypoints(loc: np.ndarray, ids: np.ndarray, dust_bin_ids: int):

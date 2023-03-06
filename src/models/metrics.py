@@ -18,8 +18,8 @@ def pred_argmax(loc_hat: torch.Tensor, ids_hat: torch.Tensor, dust_bin_ids: int)
 def pred_to_keypoints(loc_hat: torch.Tensor, ids_hat: torch.Tensor, dust_bin_ids: int):
     assert loc_hat.ndim == 4 and ids_hat.ndim == 4
     loc_argmax, ids_argmax = pred_argmax(loc_hat, ids_hat, dust_bin_ids)
-    kps, ids = label_to_keypoints(loc_argmax, ids_argmax, dust_bin_ids)
-    return kps, ids
+    kpts, ids = label_to_keypoints(loc_argmax, ids_argmax, dust_bin_ids)
+    return kpts, ids
 
 
 def label_to_keypoints(loc: torch.Tensor, ids: torch.Tensor, dust_bin_ids: int):
@@ -74,7 +74,8 @@ class DC_Metrics(Metric):
             self.distance += l2_sum / bs
             self.ratio += ratio_sum / bs
 
-    def compute_ratio(self, keypoints, ids, target_keypoints, target_ids):  # TODO merge the initial part of these two compute
+    # TODO merge the initial part of these two compute
+    def compute_ratio(self, keypoints, ids, target_keypoints, target_ids):
         matches = torch.zeros((len(target_ids),))
 
         if matches.numel() == 0:

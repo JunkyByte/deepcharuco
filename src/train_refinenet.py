@@ -11,7 +11,7 @@ import pytorch_lightning as pl
 
 if __name__ == '__main__':
     config = load_configuration(configs.CONFIG_PATH)
-    total = 14
+    total = 8
 
     dataset = RefineDataset(config, config.train_labels, config.train_images,
                             visualize=False, validation=False, total=total)
@@ -40,11 +40,10 @@ if __name__ == '__main__':
                          callbacks=[checkpoint_callback]) #,
                          # resume_from_checkpoint='./reference/epoch=27-step=122668.ckpt')
 
-
     # Run learning rate finder
-    lr_finder = trainer.tuner.lr_find(train_model, train_dataloaders=train_loader)
-    print(lr_finder.results)
-    print(lr_finder.suggestion())
-    assert False
+    # lr_finder = trainer.tuner.lr_find(train_model, num_training=250, train_dataloaders=train_loader)
+    # print(lr_finder.results)
+    # print(lr_finder.suggestion())
+    # assert False
 
     trainer.fit(train_model, train_loader, val_loader)

@@ -134,3 +134,4 @@ src/tb_logs
 iris_conf.yaml
 iris_conf_ngrok.yaml
 iris_conf_jump.yaml
+src/reference/ckpts_deepcharuco/
