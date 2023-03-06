@@ -43,7 +43,7 @@ def create_label(image: np.ndarray, keypoints: np.ndarray, kpts_ids:
         # If two occurences on same location / ids
         if ids[y, x] != dust_bin_ids:
             # print(f'Location of keypoint {idx} is already bounded to corner {ids[y, x]}')
-            if random.random() > 0.5:  # At most 2 occ. => 50% swap TODO
+            if random.random() > 0.5:  # At most 2 occ. => 50% swap
                 continue
 
         loc[y, x] = offset_x + 8 * offset_y  # encode position of the pixels
@@ -69,7 +69,7 @@ class CharucoDataset(Dataset):
         image = cv2.imread(os.path.join(self._images_folder, label['file_name']), cv2.IMREAD_COLOR)
 
         # Apply pipeline of transformations
-        image, keypoints, kpts_ids, isnegative = self.transform(image).values()  # TODO
+        image, keypoints, kpts_ids, isnegative = self.transform(image).values()
 
         dust_bin_ids = self.configs.n_ids
         loc, ids = create_label(image, keypoints, kpts_ids, isnegative, dust_bin_ids)

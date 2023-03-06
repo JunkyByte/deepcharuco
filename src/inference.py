@@ -1,8 +1,9 @@
 import cv2
 from gridwindow import MagicGrid
+from dataclasses import replace
 import numpy as np
 
-from aruco_utils import draw_circle_pred, draw_inner_corners, get_aruco_dict, get_board
+from aruco_utils import draw_inner_corners, get_aruco_dict, get_board, label_to_keypoints
 from typing import Optional
 import configs
 from configs import load_configuration
@@ -12,6 +13,52 @@ from models.net import lModel, dcModel
 from models.refinenet import RefineNet, lRefineNet
 
 
+def compute_l2_distance(keypoints, ids, target_keypoints, target_ids):
+    # Initialize an empty array to store the distances
+    distances = np.zeros((len(target_ids),))
+
+    if distances.size == 0:
+        return None
+
+    # Loop over each unique id in target_ids
+    for i, id in enumerate(np.unique(target_ids)):
+        # Find the indices of keypoints and target_keypoints with the same id
+        mask = np.nonzero(ids == id)[0]
+        target_mask = np.nonzero(target_ids == id)[0]
+
+        # If there are no matching keypoints, skip to the next id
+        if mask.size == 0 or target_mask.size == 0:
+            continue
+
+        # Compute the L2 distance between the matching keypoints and target_keypoints
+        dist = np.linalg.norm(keypoints[mask] - target_keypoints[target_mask], ord=2, axis=1)
+        max_dist = np.max(dist)
+
+        # Store the maximum distance for this id
+        distances[i] = max_dist
+
+    return distances
+
+
+def pixel_error(kpts_hat, kpts_ref, kpts_target):
+    if not set(kpts_hat[:, 2]).issubset(set(kpts_target[:, 2])):
+        return
+    d = compute_l2_distance(kpts_hat[:, :2], kpts_hat[:, 2],
+                            kpts_target[:, :2], kpts_target[:, 2])
+    d_ref = compute_l2_distance(kpts_ref[:, :2], kpts_ref[:, 2],
+                                kpts_target[:, :2], kpts_target[:, 2])
+
+    found = np.unique(kpts_hat[:, 2])
+    print(f'Errors in pixels of the {len(found)}/{len(kpts_target[:, 2])} kpts found:')
+    for ith, id in enumerate(kpts_target[:, 2]):
+        if id not in found:
+            continue
+        print(f'Marker {id:<2} Error Raw: {d[ith]:<5.3f} Error Refinet: {d_ref[ith]:<5.3f}')
+    print(f'Mean error raw: {d.mean():<5.3f} Max error raw: {d.max():<5.3f}')
+    print(f'Mean error ref: {d_ref.mean():<5.3f} Max error ref: {d_ref.max():<5.3f}')
+
+
+
 def cv2_aruco_detect(image, dictionary, board, parameters):
     # Convert image to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -19,7 +66,6 @@ def cv2_aruco_detect(image, dictionary, board, parameters):
     # Detect markers
     corners, ids, _ = cv2.aruco.detectMarkers(gray, dictionary, parameters=parameters)
     corners, ids, _, _ = cv2.aruco.refineDetectedMarkers(image, board, corners, ids, np.array([]))
-
 
     # If markers are detected, draw them and the board inner corners
     if len(corners) > 0:
@@ -43,23 +89,23 @@ def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
 
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     loc_hat, ids_hat = deepc.infer_image(img_gray)
-    kps_hat, ids_found = pred_to_keypoints(loc_hat, ids_hat, dust_bin_ids)
+    kpts_hat, ids_found = pred_to_keypoints(loc_hat, ids_hat, dust_bin_ids)
 
     # Draw predictions in RED
-    if draw_raw_pred or refinenet is None:
-        img = draw_inner_corners(img, kps_hat, ids_found, radius=3,
+    if draw_raw_pred:
+        img = draw_inner_corners(img, kpts_hat, ids_found, radius=3,
                                  draw_ids=True, color=(0, 0, 255))
 
     if ids_found.shape[0] == 0:
         return np.array([]), img
 
     if refinenet is not None:
-        patches = extract_patches(img_gray, kps_hat)
+        patches = extract_patches(img_gray, kpts_hat)
 
         # Extract 8x refined corners (in original resolution)
-        # TODO we already computed preprocessing in deepc.infer_image
+        # TODO Optimization, we already computed preprocessing in deepc.infer_image
         patches = np.array([pre_bgr_image(p, is_gray=True) for p in patches])
-        refined_kpts, _ = refinenet.infer_patches(patches, kps_hat)
+        refined_kpts, _ = refinenet.infer_patches(patches, kpts_hat)
 
         # Draw refinenet refined corners in yellow
         if draw_pred:
@@ -67,12 +113,11 @@ def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
                                      draw_ids=False, radius=1, color=(0, 255, 255))
 
     if cv2_subpix:
-        ref_kps_cv2 = pred_sub_pix(infer_image, kps_hat, ids_found, region=(6, 6))
+        ref_kpts_cv2 = pred_sub_pix(infer_image, kpts_hat, ids_found, region=(6, 6))
         # Draw cv2 refined corners in green
-        img = draw_inner_corners(img, ref_kps_cv2, ids_found, draw_ids=False,
+        img = draw_inner_corners(img, ref_kpts_cv2, ids_found, draw_ids=False,
                                  radius=1, color=(0, 255, 0))
 
-    # TODO: Make me beautiful
     keypoints = refined_kpts if refinenet else kpts_hat
     keypoints = np.array([[k[0], k[1], idx] for k, idx in sorted(zip(keypoints,
                                                                      ids_found),
@@ -90,24 +135,26 @@ if __name__ == '__main__':
     parameters = cv2.aruco.DetectorParameters_create()
 
     # Load models
-    deepc = lModel.load_from_checkpoint("./reference/second-epoch-52-step=98k.ckpt",
+    deepc = lModel.load_from_checkpoint("./reference/longrun-epoch=99-step=369700.ckpt",
                                         dcModel=dcModel(config.n_ids))
     deepc.eval()
 
     use_refinenet = True
     if use_refinenet:
-        refinenet = lRefineNet.load_from_checkpoint("./reference/first-refinenet-epoch-59-step=282k.ckpt",
+        refinenet = lRefineNet.load_from_checkpoint("./reference/first-refinenet-epoch-59-step=262k.ckpt",
                                                     refinenet=RefineNet())
         refinenet.eval()
 
     # Inference test on validation data
+    up_scale = 1  # TODO: This is needed for fair comparison of subpixel performance
+    config = replace(config, input_size = (320 * up_scale, 240 * up_scale))
     dataset_val = CharucoDataset(config,
                                  config.val_labels,
                                  config.val_images,
                                  visualize=False,
                                  validation=True)
 
-    w = MagicGrid(1000, 1000, waitKey=0)
+    w = MagicGrid(1200, 1200, waitKey=0)
     for ith, sample in enumerate(dataset_val):
         image, label = sample.values()
         loc, ids = label
@@ -116,16 +163,36 @@ if __name__ == '__main__':
         img = ((image * 255) + 128).astype(np.uint8)
         img = cv2.cvtColor(img[0], cv2.COLOR_GRAY2BGR)
 
+        if up_scale > 1
+        img = cv2.resize(img, (320, 240), cv2.INTER_LINEAR)
+
         # Run inference
         keypoints, out_img_dc = infer_image(img, config.n_ids, deepc,
                                             refinenet, cv2_subpix=False,
-                                            draw_raw_pred=True)
-        print(np.array(keypoints))
+                                            draw_pred=True, draw_raw_pred=True)
+
+        # Run inference again without refinenet
+        keypoints_raw, _ = infer_image(img, config.n_ids, deepc, None,
+                                       cv2_subpix=False,
+                                       draw_raw_pred=False,
+                                       draw_pred=False)
+
+        print(keypoints)
+        label_kpts, label_ids = label_to_keypoints(loc[None, ...], ids[None, ...], config.n_ids)
+        label_kpts = label_kpts.astype(np.float32) / 8
+
+        label_kpts = np.array([[k[0], k[1], idx] for k, idx in
+                              sorted(zip(label_kpts, label_ids), key=lambda x:
+                                     x[1])])
+
+        # if len(label_kpts) != 0 and len(keypoints) != 0:
+        #     pixel_error(keypoints_raw, keypoints, label_kpts)
+
         # Draw labels in BLUE
         # img = draw_circle_pred(img, loc, ids, config.n_ids, radius=1, draw_ids=False)
 
         # cv2 inference
-        out_img_cv, corners, _ = cv2_aruco_detect(img.copy(), dictionary, board, parameters) 
+        out_img_cv, corners, _ = cv2_aruco_detect(img.copy(), dictionary, board, parameters)
 
         # show result
         out_img_dc = cv2.resize(out_img_dc, (out_img_dc.shape[1] * 3, out_img_dc.shape[0] * 3), cv2.INTER_LANCZOS4)
@@ -144,7 +211,7 @@ if __name__ == '__main__':
         keypoints, out_img_dc = infer_image(img, config.n_ids, deepc,
                                             refinenet, cv2_subpix=False,
                                             draw_raw_pred=True)
-        print(np.array(keypoints))
+        print(keypoints)
 
         # cv2 inference
         out_img_cv, corners, _ = cv2_aruco_detect(img.copy(), dictionary, board, parameters) 
@@ -182,10 +249,10 @@ if __name__ == '__main__':
         keypoints, out_img_dc = infer_image(img, config.n_ids, deepc,
                                             refinenet, cv2_subpix=False,
                                             draw_raw_pred=True)
-        print(np.array(keypoints))
+        print(keypoints)
 
         # cv2 inference
-        out_img_cv, corners, _ = cv2_aruco_detect(img.copy(), dictionary, board, parameters) 
+        out_img_cv, corners, _ = cv2_aruco_detect(img.copy(), dictionary, board, parameters)
 
         # show result
         out_img_dc = cv2.resize(out_img_dc, (out_img_dc.shape[1] * 3, out_img_dc.shape[0] * 3), cv2.INTER_LANCZOS4)

@@ -109,11 +109,9 @@ class RefineNet(torch.nn.Module):
             loc_hat = loc_hat[:, 0, ...].cpu().numpy()
 
         # loc_hat: (N, H/8, W/8)
-        # TODO: Better to use an actual heatmap peaks extractor?
         corners = speedy_bargmax2d(loc_hat)
 
         # Add keypoints to center on keypoints, divide by 8 to account for 8x resolution
-        # Remove half left window to correct position TODO: check me (consider argmax output)
         corners_og = (corners - 32) / 8 + keypoints  # Is 32 right? :)
         return corners_og, corners
 
@@ -178,7 +176,7 @@ class lRefineNet(pl.LightningModule):
         return loss_loc
 
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(), lr=1e-2)
+        optimizer = optim.Adam(self.parameters(), lr=1e-4)
         return optimizer
 
 

@@ -9,7 +9,7 @@ from albumentations.augmentations.utils import (
 import custom_aug.utils as utils
 
 
-class PasteBoard(DualTransform):  # TODO
+class PasteBoard(DualTransform):
     """
     Paste board image on top of arbitrary image
     Args:
@@ -187,7 +187,7 @@ def match_histograms(image, reference, mask, *, channel_axis=None,
 
         matched = np.empty(image.shape, dtype=image.dtype)
         for channel in range(image.shape[-1]):
-            mask = mask.astype(bool)  # TODO: Is this enough?
+            mask = mask.astype(bool)
             matched_channel = _match_cumulative_cdf(image[mask, channel],
                                                     reference[..., channel])
             matched[mask, channel] = matched_channel

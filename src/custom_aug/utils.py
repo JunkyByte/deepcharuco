@@ -388,9 +388,6 @@ class channel_as_last_axis:
             if channel_axis is None:
                 return func(*args, **kwargs)
 
-            # TODO: convert scalars to a tuple in anticipation of eventually
-            #       supporting a tuple of channel axes. Right now, only an
-            #       integer or a single-element tuple is supported, though.
             if np.isscalar(channel_axis):
                 channel_axis = (channel_axis,)
             if len(channel_axis) > 1:

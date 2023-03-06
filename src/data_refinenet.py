@@ -8,7 +8,7 @@ import numpy as np
 
 from torch.utils.data.dataset import Dataset
 from transformations import Transformation
-from model_utils import pre_bgr_image
+from models.model_utils import pre_bgr_image, corner_sub_pix
 from dataclasses import replace
 from numba import njit
 
@@ -40,7 +40,7 @@ def _add_gaussian(keypoint_map, x, y, stride, sigma):
 
 def create_sample(image: np.ndarray, up_factor, keypoint: tuple):
     # Construct corner label
-    w_half = (192 + 64) // (2 * up_factor)  # TODO
+    w_half = (192 + 64) // (2 * up_factor)
 
     center_x = int(keypoint[0])
     center_y = int(keypoint[1])
@@ -51,18 +51,14 @@ def create_sample(image: np.ndarray, up_factor, keypoint: tuple):
     patch_og_res = image[center_y - w_half:center_y + w_half,
                          center_x - w_half:center_x + w_half]
 
-    # Here apply PAD TODO
+    # Here should apply PAD, but training with total < 16 so usually it's fine if we lose one or two corners
     if not patch_og_res.shape == (256 // up_factor, 256 // up_factor, 3):
         return None, None, None
 
     # Upscale this patch
     patch_up = cv2.resize(patch_og_res, (192 + 64, 192 + 64), cv2.INTER_CUBIC)
 
-    # We use subpix accuracy to get the position of the corner in the
-    # patch_up. Given that and rounded to int we can apply translation
-    # and then calculate new_center using the actual subpixel position
-    # (rounded) instead of using the patch_up.shape // 2
-    from models.model_utils import corner_sub_pix
+    # We use subpix accuracy to get the position of the corner in the patch_up for better labelling
     patch_up_gray = cv2.cvtColor(patch_up, cv2.COLOR_BGR2GRAY)
     ref_corner = corner_sub_pix(patch_up_gray, np.array((patch_up.shape[1] // 2,
                                                         patch_up.shape[0] // 2)).reshape((-1, 2)), region=(up_factor, up_factor)).squeeze(0)
@@ -70,7 +66,6 @@ def create_sample(image: np.ndarray, up_factor, keypoint: tuple):
 
     corr_x = ref_corner[0] - patch_up.shape[1] // 2
     corr_y = ref_corner[1] - patch_up.shape[0] // 2
-    print(ref_corner, corr_x, corr_y)
 
     # Now apply translation
     tl = 32
@@ -87,7 +82,6 @@ def create_sample(image: np.ndarray, up_factor, keypoint: tuple):
     # Why -1? If off is -32 -> -(-32) + 32 - 1 = 63 (pixels range from 0 to 63 included)
     corner_x = -off_x + tl - 1 - corr_x # Calculate the pixel 'number' (starting from 0 on top left)
     corner_y = -off_y + tl - 1 - corr_y # We have to invert the translation we just did
-    print(corner_x, corner_y)
     assert 0 <= corner_x < 64 and 0 <= corner_y < 64
 
     # We need to move to central 64x64 region position
@@ -131,7 +125,8 @@ class RefineDataset(Dataset):
         random.shuffle(keypoints)
         for keypoint in keypoints:
             patch, heat, corner = create_sample(image, up_factor, keypoint)
-            if patch is None:  # Pad not implemented, sometimes there are regions not big enough
+            # Pad not implemented, sometimes there are regions not big enough, it's not a problem
+            if patch is None:
                 continue
 
             patches.append(patch)
@@ -167,6 +162,7 @@ class RefineDataset(Dataset):
 
         # Must have same length for each batch.
         # We duplicate samples to reach correct numbering
+        # Training with total < 16, this should not happen
         missing = self.total - len(heatmaps)
         for _ in range(missing):
             idx = random.randint(0, len(patches) - 1)
