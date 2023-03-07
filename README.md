@@ -37,7 +37,24 @@ train_images: '/home/adryw/dataset/coco25/train2017/'  # validation images
 ```
 
 ## Inference
-If you setup the val data you can run `inference.py` for a preview of results on COCO validation.
+If you setup the val data you can run `inference.py` for a preview of results on validation data used in training. To do inference on your images check `inference.py` code and adapt it to your needs, the idea is the following:
+```python
+import cv2
+from inference import infer_image, load_models
+
+# Load models
+deepc_path = "./reference/longrun-epoch=99-step=369700.ckpt"
+refinenet_path = "./reference/second-refinenet-epoch-100-step=373k.ckpt"
+n_ids = 16  # The number of corners (models pretrained use 16 for default board)
+deepc, refinenet = load_models(deepc_path, refinenet_path, n_ids)
+
+# Run inference on BGR image
+img = cv2.imread(p)
+
+# The out_img will have corners plotted on it if draw_pred is True
+# The keypoints format is (x, y, id_corner)
+keypoints, out_img = infer_image(img, n_ids, deepc, refinenet, draw_pred=True)
+```
 
 ## Training
 The trained model provided for DeepCharuco network is associated to the following tensorboard plots during training
