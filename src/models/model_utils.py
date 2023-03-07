@@ -51,7 +51,7 @@ def speedy_bargmax2d(x):
     max_indices = np.zeros((x.shape[0], 2), dtype=np.int64)
     for i in prange(x.shape[0]):
         maxTemp = np.argmax(x[i])
-        max_indices[i] = [maxTemp // x.shape[2], maxTemp % x.shape[2]]
+        max_indices[i] = [maxTemp % x.shape[2], maxTemp // x.shape[2]]
     return max_indices
 
 
