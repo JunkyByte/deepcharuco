@@ -44,10 +44,10 @@ bs_train_rn: 64  # batch size for refinenet
 bs_val: 64  # batch size for deep charuco in validation
 bs_val_rn: 128  # batch size for refinenet in validation
 num_workers: 6  # num of workers used by dataloader in training
-train_labels: '/home/adryw/dataset/coco25/annotations/captions_train2017.json'  # training labels
-val_labels: '/home/adryw/dataset/coco25/annotations/captions_val2017.json'  # validation labels
-val_images: '/home/adryw/dataset/coco25/val2017/'  # training images
-train_images: '/home/adryw/dataset/coco25/train2017/'  # validation images
+train_labels: 'coco/annotations/captions_train2017.json'  # training labels
+val_labels: 'coco/annotations/captions_val2017.json'  # validation labels
+val_images: 'coco/val2017/'  # training images
+train_images: 'coco/train2017/'  # validation images
 ```
 
 ## Inference
@@ -109,10 +109,18 @@ img = cv2.imread('reference/samples_test/IMG_7412.png')
 keypoints, out_img = infer_image(img, n_ids, deepc, refinenet, draw_pred=True)
 ```
 
+Now that we obtained the keypoints we can use our favorite PnP algorithm to recover the board pose as follows:
+
+```
+TODO
+```
+
 ## Training
 Setup `config.yaml` and run `train.py` and `train_refinenet.py` to train each network separately.
 
-## Common issues
+## Notes and Common issues
 I do not have the intention to create a package out of this so I had to use some workarounds with imports. In the current state `numba` caching might break causing an error like `ModuleNotFoundError: No module named 'model_utils'`. You just need to delete `src/__pycache__ and src/models/__pycache__` and everything will work fine.  
+
+Most of the documentation for simple functions has been written using ChatGPT so it might contain errors.. what doesn't?
 
 Feel free to open pull requests and issues if you have problems.
