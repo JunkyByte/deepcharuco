@@ -16,6 +16,8 @@ The network is divided into two parts, what we call `DeepCharuco` which is a ful
 `RefineNet` takes a `(1, 24, 24)` patch around a corner and outputs a `(1, 64, 64)` tensor representing the probability that the corner is in a certain (sub-)pixel in `8x` resolution of the central `8x8` region of the patch.
 
 ## Setup for training (and inference on val data)
+`requirements.txt` should contain a valid list of requirements, notice `opencv-contrib` is `<4.7`.  
+If you wan to run `inference.py` or the `data.py` and `data_refinenet.py` you will need to install [gridwindow](https://github.com/JunkyByte/python-gridwindow) which is used for visualization (or replace everything with normal `cv2` windows)
 Synthetic data for `DeepCharuco` training
 ![data](https://i.imgur.com/KasncjL.png)  
 Synthetic data for `RefineNet` training (red center of image, green target)
@@ -108,7 +110,9 @@ keypoints, out_img = infer_image(img, n_ids, deepc, refinenet, draw_pred=True)
 ```
 
 ## Training
-The trained model provided for DeepCharuco network is associated to the following tensorboard plots during training
-(https://i.imgur.com/CvRkDlJ.png)
+Setup `config.yaml` and run `train.py` and `train_refinenet.py` to train each network separately.
 
 ## Common issues
+I do not have the intention to create a package out of this so I had to use some workarounds with imports. In the current state `numba` caching might break causing an error like `ModuleNotFoundError: No module named 'model_utils'`. You just need to delete `src/__pycache__ and src/models/__pycache__` and everything will work fine.  
+
+Feel free to open pull requests and issues if you have problems.
