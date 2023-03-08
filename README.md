@@ -1,15 +1,26 @@
 # deepcharuco
 
-This repository is an unofficial implementation of the model proposed by Hu et al. in their paper [Deep ChArUco: Dark ChArUco Marker Pose Estimation](https://arxiv.org/abs/1812.03247), CVPR-2019 for ChArUco board localization.
-This is a personal project and I have no affiliation with the authors, the results obtained might differ and should not be considered as a reference for the paper results. All the data used by the paper is not public and therefore a fair comparison is impossible.
+This repository is an unofficial implementation of the model proposed by Hu et al. in their paper [Deep ChArUco: Dark ChArUco Marker Pose Estimation CVPR2019](https://arxiv.org/abs/1812.03247) for ChArUco board localization.
+This is a personal project and I have no affiliation with the authors, the results obtained might differ and should not be considered a reference of the paper results. All the data used by the paper is not public and therefore a fair comparison is impossible.
 
-Some implementation details were not thoroughly discussed in the paper and I did my best to obtain comparable results usinig a similar model architecture and training procedure. I trained both the deep charuco and refinenet models on synthetic data generated on the fly. To train COCO images are required, further details in training section.
+Some implementation details were not thoroughly discussed in the paper and I did my best to obtain comparable results using a similar model architecture and training procedure. I trained both the deep charuco and refinenet models on synthetic data generated on the fly. To train COCO images are required, further details in training section.
 
 ## Overview and results
 ![architecture](https://i.imgur.com/W8TnGgm.png)
+The idea is to build a network which can localize charuco inner corners and recognize the ids of the corners found. The trained network is fit on a particular board configuration, in the case of the paper the board has `12` aruco markers for a total of 16 inner corners ([board image](src/reference/board_image_240x240.jpg)).
+The network is divided into two parts, what we call `DeepCharuco` which is a fully convolutional network for localization and identification [net.py](src/models/net.py) and `RefineNet` another fully convolutional network for corner refinement [refinenet.py](src/models/refinenet.py). Refer to the paper for details.  
 
-## Setup (training / inference)
-To train COCO images and annotations are needed (it just needs to contain images informations, I use `captions_*.json`).
+`DeepCharuco` takes a `(1, H, W)` grayscale image and outputs 2 tensors:
+- loc: `(65, H/8, W/8)` representing the probability that a corner is in a particular pixel (`64` pixels for a `8x8` region + 1 dust bin channel)
+- ids: `(17, H/8, W/8)` representing the probability that a certain `8x8` region contains a particular corner id + 1 dust bin channel.
+`RefineNet` takes a `(1, 24, 24)` patch around a corner and outputs a `(1, 64, 64)` tensor representing the probability that the corner is in a certain (sub-)pixel in `8x` resolution of the central `8x8` region of the patch.
+
+## Setup for training (and inference on val data)
+Synthetic data for `DeepCharuco` training
+![data](https://i.imgur.com/KasncjL.png)  
+Synthetic data for `RefineNet` training (red center of image, green target)
+![data2](https://i.imgur.com/CveVxF0.png)  
+COCO images and annotations are needed for training (the label used just needs to contain images informations, I use `captions_*.json`).
 To download coco images and labels refer to (https://cocodataset.org/#download) or use the following
 ```
 wget http://images.cocodataset.org/zips/train2017.zip
@@ -21,6 +32,7 @@ unzip val2017.zip
 unzip annotations_trainval2017.zip
 ```
 If you just want to run inference on COCO validation you can download only the `val2017` images and annotations.  
+
 To specify the paths used and other configurations we use a `yaml` config file.
 By default the scripts will try to load `src/config.yaml`. There's a `demo_config.yaml` that you can copy, the parameters are the following:
 ```yaml
@@ -37,6 +49,45 @@ train_images: '/home/adryw/dataset/coco25/train2017/'  # validation images
 ```
 
 ## Inference
+The inference uses pytorch lightning ckpts similarly to training. You can extract the `nn.Module` if you want to drop the library and use pure pytorch. This should be straightforward, check pytorch lightning documentation about inference.
+
+The pretrained models are in `src/reference/`:  
+For `DeepCharuco` you can find `longrun-epoch=99-step=369700.ckpt`
+<details>
+  <summary>Training details + plots</summary>
+  
+  Training time: `27 hours on GTX1080ti`  
+  batch size: `32`  
+  lr: `5e-3`  
+  negative probability (in [transformations.py](src/transformations.py)): 0.05  
+  Training plots:
+  ![train_res](https://i.imgur.com/PFTL10P.png)
+  ![train_res2](https://i.imgur.com/pdrC5C4.png)
+  
+  Where `l2_pixels` is the euclidean distance in pixels of the corners the model found during validation and
+  `match_ratio` is the percentage of corners found over the total in each image. Please look at [metrics.py](models/metrics.py),
+  they are not perfect metrics but provide useful insights of the model training.
+</details>
+
+For `RefineNet` you can find `second-refinenet-epoch-100-step=373k.ckpt`
+<details>
+  <summary>Training details + plots</summary>
+  
+  Training time: `22 hours on GTX1080ti`  
+  total: `8` which means we take 8 corners from each single sample image for training ([train_refinenet.py](src/train_refinenet.py))  
+  batch size: `256` (virtually `32` because `batch_size // total` is used)  
+  lr: `1e-4`  
+  negative probability (in `transformations.py`): 0.05  
+  Training plots:
+  ![train_res](https://i.imgur.com/5ddmaEB.png)
+  ![train_res2](https://i.imgur.com/7kLH046.png)
+  
+  Where `val_dist_refinenet_pixels` is the euclidean distance in pixels of the predicted corner in `8x` resolution (so if dist_pixels is `3` the error in original resolution is `3/8` of a pixel.
+  Please look at [metrics.py](models/metrics.py) for details.
+</details>
+
+---
+
 If you setup the val data you can run `inference.py` for a preview of results on validation data used in training. To do inference on your images check `inference.py` code and adapt it to your needs, the idea is the following:
 ```python
 import cv2
@@ -58,13 +109,6 @@ keypoints, out_img = infer_image(img, n_ids, deepc, refinenet, draw_pred=True)
 
 ## Training
 The trained model provided for DeepCharuco network is associated to the following tensorboard plots during training
-<details>
-  <summary>Plots</summary>
-  
-  ![train_res](https://i.imgur.com/PFTL10P.png)
-  ![train_res2](https://i.imgur.com/pdrC5C4.png)
-  Where `l2_pixels` is the euclidean distance in pixels of the corners the model found during validation and `match_ratio` is the percentage of corners found over the total in each image. Please look at `models/metrics.py`, they are not perfect metrics but provide useful insights of the model training.
-</details>
-
+(https://i.imgur.com/CvRkDlJ.png)
 
 ## Common issues
