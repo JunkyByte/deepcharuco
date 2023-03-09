@@ -3,9 +3,33 @@
 This repository is an unofficial implementation of the model proposed by Hu et al. in their paper [Deep ChArUco: Dark ChArUco Marker Pose Estimation CVPR2019](https://arxiv.org/abs/1812.03247) for ChArUco board localization.
 This is a personal project and I have no affiliation with the authors, the results obtained might differ and should not be considered a reference of the paper results. All the data used by the paper is not public and therefore a fair comparison is impossible.
 
-Some implementation details were not thoroughly discussed in the paper and I did my best to obtain comparable results using a similar model architecture and training procedure. I trained both the deep charuco and refinenet models on synthetic data generated on the fly. To train COCO images are required, further details in training section.
+Some implementation details were not thoroughly discussed in the paper and I did my best to obtain comparable results using a similar model architecture and training procedure. I trained both the deep charuco and refinenet models on synthetic data generated on the fly. To train COCO images are required, 
+further details in training section.
 
-## Overview and results
+---
+
+Results on two challenging videos:  
+On the left our results, on the right `cv2.aruco` for comparison. Corners found by both methods are highlighted.  
+![gif1](https://i.imgur.com/mv0HqFU.gif)  
+![gif2](https://i.imgur.com/JKqhAdJ.gif)
+
+<details>
+  <summary>More samples</summary>
+  
+  These are from validation data.  
+  Top our method, Bottom `cv2.aruco` for comparison.  
+  The results are good even with blurry / low light settings while `cv2.aruco` does not find a single marker.
+  ![](https://i.imgur.com/kHX8YAR.png)
+  
+  Where `l2_pixels` is the euclidean distance in pixels of the corners the model found during validation and
+  `match_ratio` is the percentage of corners found over the total in each image. Please look at [metrics.py](models/metrics.py),
+  they are not perfect metrics but provide useful insights of the model training.
+</details>
+
+
+## Overview
+
+### Architecture
 ![architecture](https://i.imgur.com/W8TnGgm.png)
 The idea is to build a network which can localize charuco inner corners and recognize the ids of the corners found. The trained network is fit on a particular board configuration, in the case of the paper the board has `12` aruco markers for a total of 16 inner corners ([board image](src/reference/board_image_240x240.jpg)).
 The network is divided into two parts, what we call `DeepCharuco` which is a fully convolutional network for localization and identification [net.py](src/models/net.py) and `RefineNet` another fully convolutional network for corner refinement [refinenet.py](src/models/refinenet.py). Refer to the paper for details.  
@@ -13,7 +37,12 @@ The network is divided into two parts, what we call `DeepCharuco` which is a ful
 `DeepCharuco` takes a `(1, H, W)` grayscale image and outputs 2 tensors:
 - loc: `(65, H/8, W/8)` representing the probability that a corner is in a particular pixel (`64` pixels for a `8x8` region + 1 dust bin channel)
 - ids: `(17, H/8, W/8)` representing the probability that a certain `8x8` region contains a particular corner id + 1 dust bin channel.
-`RefineNet` takes a `(1, 24, 24)` patch around a corner and outputs a `(1, 64, 64)` tensor representing the probability that the corner is in a certain (sub-)pixel in `8x` resolution of the central `8x8` region of the patch.
+`RefineNet` takes a `(1, 24, 24)` patch around a corner and outputs a `(1, 64, 64)` tensor representing the probability that the corner is in a certain (sub-)pixel in `8x` resolution of the central `8x8` region of the patch.  
+
+### Benchmarks (inference)
+Running on GTX1080Ti GPU, inference on a single `320x240` image stored on RAM (so there's also data transfer to gpu) and all `16` keypoints found (maximum computation case for RefineNet)
+- DeepCharuco + Refinenet: `~192.5 fps`
+- DeepCharuco (only): `~359 fps`
 
 ## Setup for training (and inference on val data)
 `requirements.txt` should contain a valid list of requirements, notice `opencv-contrib` is `<4.7`.  
@@ -99,7 +128,7 @@ from inference import infer_image, load_models
 deepc_path = './reference/longrun-epoch=99-step=369700.ckpt'
 refinenet_path = './reference/second-refinenet-epoch-100-step=373k.ckpt'
 n_ids = 16  # The number of corners (models pretrained use 16 for default board)
-deepc, refinenet = load_models(deepc_path, refinenet_path, n_ids)
+deepc, refinenet = load_models(deepc_path, refinenet_path, n_ids, device="cuda")  # use device: cpu / cuda
 
 # Run inference on BGR image
 img = cv2.imread('reference/samples_test/IMG_7412.png')
@@ -109,10 +138,17 @@ img = cv2.imread('reference/samples_test/IMG_7412.png')
 keypoints, out_img = infer_image(img, n_ids, deepc, refinenet, draw_pred=True)
 ```
 
-Now that we obtained the keypoints we can use our favorite PnP algorithm to recover the board pose as follows:
+Now that we obtained the keypoints we can use a PnP algorithm to recover the board pose as follows:  
+For more infos check [pose_estimation.py](src/pose_estimation.py) which has been used to generate video previews of samples.
 
-```
-TODO
+```python
+from inference import solve_pnp
+
+# load your intrinsics as camera_matrix and dist_coeffs
+# check calib_intrinsics for a reference how I generated them.
+# Check the solve pnp function and adapt it to your needs.
+ret, rvec, tvec = solve_pnp(keypoints, col_count, row_count, square_len,
+                            camera_matrix, dist_coeffs)
 ```
 
 ## Training
