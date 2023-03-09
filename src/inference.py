@@ -40,23 +40,26 @@ def compute_l2_distance(keypoints, ids, target_keypoints, target_ids):
     return distances
 
 
-def pixel_error(kpts_hat, kpts_ref, kpts_target):
-    if not set(kpts_hat[:, 2]).issubset(set(kpts_target[:, 2])):
-        return
-    d = compute_l2_distance(kpts_hat[:, :2], kpts_hat[:, 2],
+def pixel_error(kpts_raw, kpts_ref, kpts_target):
+    if not set(kpts_raw[:, 2]).issubset(set(kpts_target[:, 2])):
+        return None, None
+    d = compute_l2_distance(kpts_raw[:, :2], kpts_raw[:, 2],
                             kpts_target[:, :2], kpts_target[:, 2])
     d_ref = compute_l2_distance(kpts_ref[:, :2], kpts_ref[:, 2],
                                 kpts_target[:, :2], kpts_target[:, 2])
+    d_raw_ref = compute_l2_distance(kpts_ref[:, :2], kpts_ref[:, 2],
+                                    kpts_raw[:, :2], kpts_raw[:, 2])
 
-    found = np.unique(kpts_hat[:, 2])
+    found = np.unique(kpts_raw[:, 2])
     print(f'Errors in pixels of the {len(found)}/{len(kpts_target[:, 2])} kpts found:')
-    for ith, id in enumerate(kpts_target[:, 2]):
-        if id not in found:
-            continue
-        print(f'Marker {id:<2} Error Raw: {d[ith]:<5.3f} Error Refinet: {d_ref[ith]:<5.3f}')
+    # for ith, id in enumerate(kpts_target[:, 2]):
+    #     if id not in found:
+    #         continue
+    #     print(f'Marker {id:<2} Error Raw: {d[ith]:<5.3f} Error Refinet: {d_ref[ith]:<5.3f}')
     print(f'Mean error raw: {d.mean():<5.3f} Max error raw: {d.max():<5.3f}')
     print(f'Mean error ref: {d_ref.mean():<5.3f} Max error ref: {d_ref.max():<5.3f}')
-
+    print(f'Mean dist raw/ref: {d_raw_ref.mean():<5.3f} Max dist raw/ref: {d_raw_ref.max():<5.3f}')
+    return d.mean(), d_ref.mean()
 
 
 def cv2_aruco_detect(image, dictionary, board, parameters):
@@ -126,6 +129,18 @@ def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
     return keypoints, img
 
 
+def load_models(deepc_ckpt: str, refinenet_ckpt: Optional[str] = None, n_ids: int = 16):
+    deepc = lModel.load_from_checkpoint(deepc_ckpt, dcModel=dcModel(n_ids))
+    deepc.eval()
+
+    refinenet = None
+    if refinenet_ckpt is not None:
+        refinenet = lRefineNet.load_from_checkpoint(refinenet_ckpt, refinenet=RefineNet())
+        refinenet.eval()
+
+    return deepc, refinenet
+
+
 if __name__ == '__main__':
     config = load_configuration(configs.CONFIG_PATH)
 
@@ -135,19 +150,16 @@ if __name__ == '__main__':
     parameters = cv2.aruco.DetectorParameters_create()
 
     # Load models
-    deepc = lModel.load_from_checkpoint("./reference/longrun-epoch=99-step=369700.ckpt",
-                                        dcModel=dcModel(config.n_ids))
-    deepc.eval()
-
-    use_refinenet = True
-    if use_refinenet:
-        refinenet = lRefineNet.load_from_checkpoint("./reference/first-refinenet-epoch-59-step=262k.ckpt",
-                                                    refinenet=RefineNet())
-        refinenet.eval()
+    deepc_path = "./reference/longrun-epoch=99-step=369700.ckpt"
+    refinenet_path = "./reference/second-refinenet-epoch-100-step=373k.ckpt"
+    deepc, refinenet = load_models(deepc_path, refinenet_path, n_ids=config.n_ids)
 
     # Inference test on validation data
-    up_scale = 1  # TODO: This is needed for fair comparison of subpixel performance
-    config = replace(config, input_size = (320 * up_scale, 240 * up_scale))
+    up_scale = 1  # Set to 8 for with/without refinenet comparison
+    if up_scale > 1:
+        config = replace(config, input_size = (320 * up_scale, 240 * up_scale))
+
+    # Load val dataset
     dataset_val = CharucoDataset(config,
                                  config.val_labels,
                                  config.val_images,
@@ -155,6 +167,8 @@ if __name__ == '__main__':
                                  validation=True)
 
     w = MagicGrid(1200, 1200, waitKey=0)
+    d_tot = 0
+    d_ref_tot = 0
     for ith, sample in enumerate(dataset_val):
         image, label = sample.values()
         loc, ids = label
@@ -163,36 +177,46 @@ if __name__ == '__main__':
         img = ((image * 255) + 128).astype(np.uint8)
         img = cv2.cvtColor(img[0], cv2.COLOR_GRAY2BGR)
 
-        if up_scale > 1
-        img = cv2.resize(img, (320, 240), cv2.INTER_LINEAR)
+        if up_scale > 1:
+            img = cv2.resize(img, (320, 240), cv2.INTER_LINEAR)
 
         # Run inference
         keypoints, out_img_dc = infer_image(img, config.n_ids, deepc,
                                             refinenet, cv2_subpix=False,
                                             draw_pred=True, draw_raw_pred=True)
+        print('Keypoints\n', keypoints)
 
-        # Run inference again without refinenet
-        keypoints_raw, _ = infer_image(img, config.n_ids, deepc, None,
-                                       cv2_subpix=False,
-                                       draw_raw_pred=False,
-                                       draw_pred=False)
+        if up_scale > 1:
+            # Run inference again without refinenet
+            keypoints_raw, _ = infer_image(img, config.n_ids, deepc, None,
+                                           cv2_subpix=False,
+                                           draw_raw_pred=False,
+                                           draw_pred=False)
 
-        print(keypoints)
-        label_kpts, label_ids = label_to_keypoints(loc[None, ...], ids[None, ...], config.n_ids)
-        label_kpts = label_kpts.astype(np.float32) / 8
+            label_kpts, label_ids = label_to_keypoints(loc[None, ...], ids[None, ...], config.n_ids)
+            label_kpts = label_kpts.astype(np.float32) / up_scale
 
-        label_kpts = np.array([[k[0], k[1], idx] for k, idx in
-                              sorted(zip(label_kpts, label_ids), key=lambda x:
-                                     x[1])])
+            label_kpts = np.array([[k[0], k[1], idx] for k, idx in
+                                  sorted(zip(label_kpts, label_ids), key=lambda x:
+                                         x[1])])
 
-        # if len(label_kpts) != 0 and len(keypoints) != 0:
-        #     pixel_error(keypoints_raw, keypoints, label_kpts)
+            if len(label_kpts) != 0 and len(keypoints) != 0:
+                d, d_ref = pixel_error(keypoints_raw, keypoints, label_kpts)
 
-        # Draw labels in BLUE
-        # img = draw_circle_pred(img, loc, ids, config.n_ids, radius=1, draw_ids=False)
+            # Error statistics
+            if d is not None:
+                d_tot += d
+                d_ref_tot += d_ref
 
         # cv2 inference
         out_img_cv, corners, _ = cv2_aruco_detect(img.copy(), dictionary, board, parameters)
+
+        # Statistics up now
+        if up_scale > 1:
+            print('Cumulative statistics on samples (up now)')
+            print(f'Mean Error raw: {d_tot / (ith + 1):.2f}')
+            print(f'Mean Error ref: {d_ref_tot / (ith + 1):.2f}')
+
 
         # show result
         out_img_dc = cv2.resize(out_img_dc, (out_img_dc.shape[1] * 3, out_img_dc.shape[0] * 3), cv2.INTER_LANCZOS4)

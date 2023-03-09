@@ -12,13 +12,12 @@ class RefineNet(torch.nn.Module):
 
         self.relu = torch.nn.ReLU(inplace=True)
         self.pool = torch.nn.MaxPool2d(kernel_size=2, stride=2, return_indices=False)
-        c1, c2, c3, c4, c5 = 64, 128, 128, 128, 64
+
+        c1, c2, c3, c4, c5 = 64, 128, 128, 128, 64  # Small architecture
         self.last_c = 64
-        self.reBn = True
 
         self.up_sample = torch.nn.UpsamplingNearest2d(scale_factor=2)
 
-        # Shared Encoder.
         self.conv1a = torch.nn.Conv2d(1, c1, kernel_size=3, stride=1, padding=0)
         self.bn1a = nn.BatchNorm2d(c1)
         self.conv1b = torch.nn.Conv2d(c1, c1, kernel_size=3, stride=1, padding=0)
@@ -81,7 +80,6 @@ class RefineNet(torch.nn.Module):
         cPa = self.relu(self.bnPa(self.convPa(x)))
         loc = self.convPb(cPa)
 
-
         return loc
 
     def infer_patches(self, patches: np.ndarray,
@@ -101,6 +99,7 @@ class RefineNet(torch.nn.Module):
             corners in 8x resolution (in original image)
             and corners in 64x64 window
         """
+        assert patches.shape[-2:] == (24, 24)
         with torch.no_grad():
             if patches.ndim == 3:
                 patches = np.expand_dims(patches, axis=1)
