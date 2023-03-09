@@ -14,7 +14,7 @@ def corner_sub_pix(img, corners, region=(8, 8)):
                             region, (-1, -1), term).squeeze(1)
 
 
-def extract_patches(img: np.ndarray, keypoints: np.ndarray, patch_size: int = 24) -> list:
+def extract_patches(img: np.ndarray, keypoints: np.ndarray, patch_size: int = 24) -> np.ndarray:
     # Compute the half size of the patch
     half_size = patch_size // 2
 
@@ -22,7 +22,7 @@ def extract_patches(img: np.ndarray, keypoints: np.ndarray, patch_size: int = 24
     padding = half_size
 
     # Pad the image with zeros
-    padded_img = cv2.copyMakeBorder(img, padding, padding, padding, padding, cv2.BORDER_CONSTANT, value=(0, 0, 0))
+    padded_img = cv2.copyMakeBorder(img.squeeze(0), padding, padding, padding, padding, cv2.BORDER_CONSTANT, value=0)
 
     # Extract the patches centered around the keypoints
     patches = []
@@ -33,7 +33,7 @@ def extract_patches(img: np.ndarray, keypoints: np.ndarray, patch_size: int = 24
         patch_right = kp[0] + padding + half_size
         patch = padded_img[patch_top:patch_bottom, patch_left:patch_right]
         patches.append(patch)
-    return patches
+    return np.array(patches)
 
 
 @njit('i8[:,::1](f4[:,:,::1])', cache=True, parallel=True)

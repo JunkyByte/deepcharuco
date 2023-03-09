@@ -3,6 +3,26 @@ import cv2
 from models.model_utils import label_to_keypoints
 
 
+def cv2_aruco_detect(image, dictionary, board, parameters):
+    # Convert image to grayscale
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    # Detect markers
+    corners, ids, _ = cv2.aruco.detectMarkers(gray, dictionary, parameters=parameters)
+    corners, ids, _, _ = cv2.aruco.refineDetectedMarkers(image, board, corners, ids, np.array([]))
+
+    # If markers are detected, draw them and the board inner corners
+    if len(corners) > 0:
+        # Get board corners
+        board_corners = [corners[i][0] for i in range(len(corners))]
+        board_corners = np.array(board_corners, dtype=np.float32)
+
+        # Draw board inner corners
+        image = draw_inner_corners(image, board_corners.reshape((-1, 2)), ids=np.arange(board_corners.shape[0]))
+
+    return image, corners, ids
+
+
 def get_board(configs):
     board = cv2.aruco.CharucoBoard_create(
         squaresX=configs.col_count,
