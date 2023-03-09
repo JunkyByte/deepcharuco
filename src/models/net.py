@@ -79,9 +79,9 @@ class dcModel(torch.nn.Module):
         output = {'loc': loc, 'ids': ids}
         return output
 
-    def infer_image(self, img: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def infer_image(self, img: np.ndarray, preprocessing=True) -> tuple[np.ndarray, np.ndarray]:
         """
-        Inference on a single BGR or gray image, assuming no pre processing
+        Inference on a single BGR or gray image, do preprocessing if True
 
         Parameters
         ----------
@@ -93,7 +93,8 @@ class dcModel(torch.nn.Module):
             loc, ids output
         """
         with torch.no_grad():
-            img = pre_bgr_image(img, is_gray=img.ndim == 2)
+            if preprocessing:
+                img = pre_bgr_image(img, is_gray=img.ndim == 2)
             img = torch.tensor(np.expand_dims(img, axis=0))
             loc_hat, ids_hat = self(img).values()
             loc_hat = loc_hat.cpu().numpy()
@@ -126,8 +127,8 @@ class lModel(pl.LightningModule):
     def forward(self, x):
         return self.model(x)
 
-    def infer_image(self, img: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        return self.model.infer_image(img)
+    def infer_image(self, img: np.ndarray, preprocessing: bool = True) -> tuple[np.ndarray, np.ndarray]:
+        return self.model.infer_image(img, preprocessing)
 
     def validation_step(self, batch, batch_idx):
         # training_step defines the train loop.

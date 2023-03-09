@@ -25,19 +25,22 @@ object_point = np.zeros((CHESSBOARD_SIZE[0] * CHESSBOARD_SIZE[1], 3), np.float32
 object_point[:, :2] = np.mgrid[0:CHESSBOARD_SIZE[0], 0:CHESSBOARD_SIZE[1]].T.reshape(-1, 2)
 
 # Find the chessboard corners in each input image
-for i, image in enumerate(images[::5]):
+for i, image in enumerate(images[::5]):  # Here I take only a few images..
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     found, corners = cv2.findChessboardCorners(gray, CHESSBOARD_SIZE, cv2.CALIB_CB_ADAPTIVE_THRESH | cv2.CALIB_CB_FAST_CHECK | cv2.CALIB_CB_NORMALIZE_IMAGE)
     if found:
         object_points.append(object_point)
         corners_refined = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), TERMINATION_CRITERIA)
         image_points.append(corners_refined)
-        cv2.drawChessboardCorners(image, CHESSBOARD_SIZE, corners_refined, found)
-        cv2.destroyAllWindows()
-        cv2.imshow(f'Images {i+1}', image)
-        cv2.waitKey(1)
+
+        if "DISPLAY" in os.environ:
+            cv2.drawChessboardCorners(image, CHESSBOARD_SIZE, corners_refined, found)
+            cv2.destroyAllWindows()
+            cv2.imshow(f'Images {i+1}', image)
+            cv2.waitKey(1)
 
 # Perform camera calibration using the object and image points
+print('Running calibration...')
 ret, camera_matrix, distortion_coeffs, rvecs, tvecs = cv2.calibrateCamera(object_points, image_points, images[0].shape[0:2][::-1], None, None)
 
 # Compute and display the reprojection error
