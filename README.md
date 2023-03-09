@@ -1,6 +1,6 @@
 # deepcharuco
 
-This repository is an unofficial implementation of the model proposed by Hu et al. in their paper [Deep ChArUco: Dark ChArUco Marker Pose Estimation CVPR2019](https://arxiv.org/abs/1812.03247) for ChArUco board localization.
+This repository is an unofficial pytorch (lightning) implementation of the model proposed by Hu et al. in their paper [Deep ChArUco: Dark ChArUco Marker Pose Estimation CVPR2019](https://arxiv.org/abs/1812.03247) for ChArUco board localization.
 This is a personal project and I have no affiliation with the authors, the results obtained might differ and should not be considered a reference of the paper results. All the data used by the paper is not public and therefore a fair comparison is impossible.
 
 Some implementation details were not thoroughly discussed in the paper and I did my best to obtain comparable results using a similar model architecture and training procedure. I trained both the deep charuco and refinenet models on synthetic data generated on the fly. To train COCO images are required, 
