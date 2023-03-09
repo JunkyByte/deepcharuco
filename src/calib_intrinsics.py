@@ -38,7 +38,7 @@ for i, image in enumerate(images[::5]):
         cv2.waitKey(1)
 
 # Perform camera calibration using the object and image points
-ret, camera_matrix, distortion_coeffs, rvecs, tvecs = cv2.calibrateCamera(object_points, image_points, images[0].shape[0:2], None, None)
+ret, camera_matrix, distortion_coeffs, rvecs, tvecs = cv2.calibrateCamera(object_points, image_points, images[0].shape[0:2][::-1], None, None)
 
 # Compute and display the reprojection error
 mean_error = 0

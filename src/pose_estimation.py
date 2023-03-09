@@ -32,7 +32,7 @@ if __name__ == '__main__':
     refinenet_path = "./reference/second-refinenet-epoch-100-step=373k.ckpt"
     deepc, refinenet = load_models(deepc_path, refinenet_path, n_ids=config.n_ids)
 
-    w = MagicGrid(640, 480, waitKey=0)
+    w = MagicGrid(640, 480, waitKey=1)
     for f in sorted(glob.glob('../data_demo/test_frames/*.png'))[::10]:
         img = cv2.imread(f)
         keypoints, img = infer_image(img, config.n_ids, deepc,
@@ -45,18 +45,18 @@ if __name__ == '__main__':
 
         _, rvec, tvec = cv2.solvePnP(object_points_found, image_points, camera_matrix, dist_coeffs)
 
-
         # Draw axis
-        axis_length = 0.005
+        axis_length = 0.02
+
         origin_point = np.zeros((3, 1))
         x_axis_point = np.array([[axis_length], [0], [0]])
         y_axis_point = np.array([[0], [axis_length], [0]])
-        z_axis_point = np.array([[0], [0], [axis_length]])
+        z_axis_point = np.array([[0], [0], [-axis_length]])
         axis_points = np.hstack([origin_point, x_axis_point, y_axis_point, z_axis_point])
 
         image_points, _ = cv2.projectPoints(axis_points, rvec, tvec, camera_matrix, dist_coeffs)
         image_points = np.int32(image_points.squeeze())
-        print(image_points.shape, image_points[0])
+
         cv2.line(img, tuple(image_points[0]), tuple(image_points[1]), (0, 0, 255), 2) # x-axis (red)
         cv2.line(img, tuple(image_points[0]), tuple(image_points[2]), (0, 255, 0), 2) # y-axis (green)
         cv2.line(img, tuple(image_points[0]), tuple(image_points[3]), (255, 0, 0), 2) # z-axis (blue)
