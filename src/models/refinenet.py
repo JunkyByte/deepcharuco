@@ -100,10 +100,11 @@ class RefineNet(torch.nn.Module):
             and corners in 64x64 window
         """
         assert patches.shape[-2:] == (24, 24)
+        device = "cuda" if next(self.parameters()).is_cuda else 'cpu'
         with torch.no_grad():
             if patches.ndim == 3:
                 patches = np.expand_dims(patches, axis=1)
-            patches = torch.tensor(patches)
+            patches = torch.tensor(patches, device=device)
             loc_hat = self(patches)
             loc_hat = loc_hat[:, 0, ...].cpu().numpy()
 

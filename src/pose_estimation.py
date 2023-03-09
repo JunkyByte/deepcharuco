@@ -1,5 +1,6 @@
 import glob
 import argparse
+import torch
 import os
 import cv2
 import configs
@@ -30,7 +31,8 @@ if __name__ == '__main__':
     # Run inference
     deepc_path = "./reference/longrun-epoch=99-step=369700.ckpt"
     refinenet_path = "./reference/second-refinenet-epoch-100-step=373k.ckpt"
-    deepc, refinenet = load_models(deepc_path, refinenet_path, n_ids=config.n_ids)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    deepc, refinenet = load_models(deepc_path, refinenet_path, n_ids=config.n_ids, device=device)
 
     # These are needed just for comparison with cv2
     dictionary = get_aruco_dict(config.board_name)
@@ -39,7 +41,6 @@ if __name__ == '__main__':
     frames = []
     if "DISPLAY" in os.environ:
         w = MagicGrid(640, 480, waitKey=1)
-
     for f in tqdm.tqdm(sorted(glob.glob(os.path.join(args.input_dir, '*.png')))):
         img = cv2.imread(f)
         img_og = img.copy()
@@ -73,16 +74,21 @@ if __name__ == '__main__':
                                                           camera_matrix,
                                                           dist_coeffs, None,
                                                           None)
-        print(np.array(board.objPoints)[ids])
+
+        object_points_found = np.array(board.objPoints)[ids].reshape((-1, 3))
+        image_points = np.array(corners).reshape((-1, 2))
+
+        ret_cv2 = False
+        if image_points.shape[0] >= 4:
+            ret_cv2, rvec, tvec = cv2.solvePnP(object_points_found, image_points, camera_matrix, dist_coeffs)
 
         if ret_cv2:
             cv2.drawFrameAxes(out_img_cv, camera_matrix, dist_coeffs, rvec, tvec, 0.01, 2)
 
+        frames.append(np.hstack([img, out_img_cv]))
         if "DISPLAY" in os.environ:
-            if w.update([img]) == ord('q'):
+            if w.update([frames[-1]]) == ord('q'):
                 import sys
                 sys.exit()
-
-        frames.append(np.hstack([img, out_img_cv]))
 
     save_video(frames, os.path.join(args.input_dir, 'res.mp4'), fps=30)
