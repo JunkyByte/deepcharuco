@@ -46,7 +46,8 @@ if __name__ == '__main__':
     config = load_configuration(CONFIG_PATH)
 
     # Create an image from the gridboard
-    img, corners = board_image(config.aruco_board, (480, 480),
+    board = get_board(configs)
+    img, corners = board_image(board, (480, 480),
                                config.row_count, config.col_count)
     img = draw_inner_corners(img, corners, np.arange(config.n_ids), draw_ids=True)
     cv2.imshow('Gridboard', img)

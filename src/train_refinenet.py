@@ -36,13 +36,12 @@ if __name__ == '__main__':
     logger = TensorBoardLogger("tb_logs", name="refinenet")
     checkpoint_callback = ModelCheckpoint(dirpath="tb_logs/ckpts_refinenet/", save_top_k=10,
                                           monitor="val_refinenet_loss")
-    trainer = pl.Trainer(max_epochs=60, logger=logger, accelerator="auto",
+    trainer = pl.Trainer(max_epochs=200, logger=logger, accelerator="auto",
                          callbacks=[checkpoint_callback]) #,
-                         # resume_from_checkpoint='./reference/epoch=27-step=122668.ckpt')
+                         # resume_from_checkpoint='./reference/second-refinenet-epoch-100-step=373k.ckpt')
 
     # Run learning rate finder
-    # lr_finder = trainer.tuner.lr_find(train_model, num_training=250, train_dataloaders=train_loader)
-    # print(lr_finder.results)
+    # lr_finder = trainer.tuner.lr_find(train_model, num_training=300, train_dataloaders=train_loader)
     # print(lr_finder.suggestion())
     # assert False
 

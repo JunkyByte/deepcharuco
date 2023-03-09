@@ -18,29 +18,19 @@ def extract_patches(img: np.ndarray, keypoints: np.ndarray, patch_size: int = 24
     # Compute the half size of the patch
     half_size = patch_size // 2
 
-    # Compute the borders to pad the image with
-    top, bottom = half_size, half_size
-    left, right = half_size, half_size
-
-    if keypoints[:, 0].min() < half_size:
-        left = half_size - keypoints[:, 0].min()
-    if keypoints[:, 1].min() < half_size:
-        top = half_size - keypoints[:, 1].min()
-    if keypoints[:, 0].max() >= img.shape[1] - half_size:
-        right = half_size + keypoints[:, 0].max() - (img.shape[1] - 1)
-    if keypoints[:, 1].max() >= img.shape[0] - half_size:
-        bottom = half_size + keypoints[:, 1].max() - (img.shape[0] - 1)
+    # Compute the amount of padding needed in each direction
+    padding = half_size
 
     # Pad the image with zeros
-    padded_img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=(0, 0, 0))
+    padded_img = cv2.copyMakeBorder(img, padding, padding, padding, padding, cv2.BORDER_CONSTANT, value=(0, 0, 0))
 
     # Extract the patches centered around the keypoints
     patches = []
     for kp in keypoints:
-        patch_top = kp[1] - half_size + top
-        patch_bottom = kp[1] + half_size + bottom
-        patch_left = kp[0] - half_size + left
-        patch_right = kp[0] + half_size + right
+        patch_top = kp[1] + padding - half_size
+        patch_bottom = kp[1] + padding + half_size
+        patch_left = kp[0] + padding - half_size
+        patch_right = kp[0] + padding + half_size
         patch = padded_img[patch_top:patch_bottom, patch_left:patch_right]
         patches.append(patch)
     return patches
