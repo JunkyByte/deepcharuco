@@ -153,6 +153,8 @@ Setup `config.yaml` and run `train.py` and `train_refinenet.py` to train each ne
 ## Notes and Common issues
 I do not have the intention to create a package out of this so I had to use some workarounds with imports. In the current state `numba` caching might break causing an error like `ModuleNotFoundError: No module named 'model_utils'`. You just need to delete `src/__pycache__ and src/models/__pycache__` and everything will work fine.  
 
-Most of the documentation for simple functions has been written using ChatGPT so it might contain errors.. what doesn't?
+Most of the documentation for simple functions has been written using ChatGPT so it might contain errors.. what doesn't?  
+The starting script for model architecture has been taken from a pytorch implementation of SuperPoint  
+https://github.com/eric-yyjau/pytorch-superpoint
 
 Feel free to open pull requests and issues if you have problems.
