@@ -20,10 +20,6 @@ On the left our results, on the right `cv2.aruco` for comparison. Corners found 
   Top our method, Bottom `cv2.aruco` for comparison.  
   The results are good even with blurry / low light settings while `cv2.aruco` does not find a single marker.
   ![](https://i.imgur.com/kHX8YAR.png)
-  
-  Where `l2_pixels` is the euclidean distance in pixels of the corners the model found during validation and
-  `match_ratio` is the percentage of corners found over the total in each image. Please look at [metrics.py](models/metrics.py),
-  they are not perfect metrics but provide useful insights of the model training.
 </details>
 
 
