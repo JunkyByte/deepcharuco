@@ -92,7 +92,7 @@ For `DeepCharuco` you can find `longrun-epoch=99-step=369700.ckpt`
   ![train_res2](https://i.imgur.com/pdrC5C4.png)
   
   Where `l2_pixels` is the euclidean distance in pixels of the corners the model found during validation and
-  `match_ratio` is the percentage of corners found over the total in each image. Please look at [metrics.py](models/metrics.py),
+  `match_ratio` is the percentage of corners found over the total in each image. Please look at [metrics.py](src/models/metrics.py),
   they are not perfect metrics but provide useful insights of the model training.
 </details>
 
@@ -109,8 +109,8 @@ For `RefineNet` you can find `second-refinenet-epoch-100-step=373k.ckpt`
   ![train_res](https://i.imgur.com/5ddmaEB.png)
   ![train_res2](https://i.imgur.com/7kLH046.png)
   
-  Where `val_dist_refinenet_pixels` is the euclidean distance in pixels of the predicted corner in `8x` resolution (so if dist_pixels is `3` the error in original resolution is `3/8` of a pixel.
-  Please look at [metrics.py](models/metrics.py) for details.
+  Where `val_dist_refinenet_pixels` is the euclidean distance in pixels of the predicted corner in `8x` resolution (so if dist_pixels is `3` the error in original resolution is `3/8` of a pixel).
+  Please look at [metrics.py](src/models/metrics.py) for details.
 </details>
 
 ---
