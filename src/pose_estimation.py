@@ -55,17 +55,6 @@ if __name__ == '__main__':
                                     camera_matrix, dist_coeffs)
 
         if ret:  # Draw axis
-            axis_length = 0.02
-
-            origin_point = np.zeros((3, 1))
-            x_axis_point = np.array([[axis_length], [0], [0]])
-            y_axis_point = np.array([[0], [axis_length], [0]])
-            z_axis_point = np.array([[0], [0], [axis_length]])
-            axis_points = np.hstack([origin_point, x_axis_point, y_axis_point, z_axis_point])
-
-            image_points, _ = cv2.projectPoints(axis_points, rvec, tvec, camera_matrix, dist_coeffs)
-            image_points = np.int32(image_points.squeeze())
-
             cv2.drawFrameAxes(img, camera_matrix, dist_coeffs, rvec, tvec, 0.01, 2)
 
         # Do the same using aruco cv2 detect markers (this is for video comparison)

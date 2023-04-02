@@ -31,8 +31,7 @@ def solve_pnp(keypoints, col_count, row_count, square_len, camera_matrix, dist_c
 
 def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
                 refinenet: Optional[lRefineNet] = None,
-                draw_raw_pred: bool = False,
-                draw_pred: bool = True):
+                draw_pred: bool = False):
     """
     Do full inference on a BGR image
     """
@@ -43,7 +42,7 @@ def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
     kpts_hat, ids_found = pred_to_keypoints(loc_hat, ids_hat, dust_bin_ids)
 
     # Draw predictions in RED
-    if draw_raw_pred:
+    if draw_pred:
         img = draw_inner_corners(img, kpts_hat, ids_found, radius=3,
                                  draw_ids=True, color=(0, 0, 255))
 
