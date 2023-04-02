@@ -48,7 +48,7 @@ if __name__ == '__main__':
         if img is None:
             raise ValueError("Could not read the images")
         keypoints, img = infer_image(img, config.n_ids, deepc, refinenet,
-                                     draw_raw_pred=True)
+                                     draw_pred=True)
 
         ret, rvec, tvec = solve_pnp(keypoints, config.col_count,
                                     config.row_count, config.square_len,
