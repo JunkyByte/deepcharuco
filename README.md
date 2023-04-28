@@ -147,6 +147,8 @@ ret, rvec, tvec = solve_pnp(keypoints, col_count, row_count, square_len,
                             camera_matrix, dist_coeffs)
 ```
 
+### Checkout https://github.com/JunkyByte/fast-charuco for faster inference.
+
 ## Training
 Setup `config.yaml` and run `train.py` and `train_refinenet.py` to train each network separately.
 
