@@ -33,6 +33,7 @@ The network is divided into two parts, what we call `DeepCharuco` which is a ful
 `DeepCharuco` takes a `(1, H, W)` grayscale image and outputs 2 tensors:
 - loc: `(65, H/8, W/8)` representing the probability that a corner is in a particular pixel (`64` pixels for a `8x8` region + 1 dust bin channel)
 - ids: `(17, H/8, W/8)` representing the probability that a certain `8x8` region contains a particular corner id + 1 dust bin channel.
+
 `RefineNet` takes a `(1, 24, 24)` patch around a corner and outputs a `(1, 64, 64)` tensor representing the probability that the corner is in a certain (sub-)pixel in `8x` resolution of the central `8x8` region of the patch.  
 
 ### Benchmarks (inference)
