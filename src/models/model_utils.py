@@ -29,12 +29,11 @@ def extract_patches(img: np.ndarray, keypoints: np.ndarray, patch_size: int = 24
 
 # @torch.jit.script  # TODO
 def speedy_bargmax2d(x):
-    max_indices = torch.zeros(x.shape[0], 2, dtype=torch.int64, device=x.device)
-    for i in range(x.shape[0]):
-        max_temp = torch.argmax(x[i].view(-1))
-        max_indices[i, 0] = max_temp % x.shape[2]
-        max_indices[i, 1] = max_temp // x.shape[2]
-    return max_indices
+    _, indices = torch.max(x.view(x.shape[0], -1), dim=1)
+    col_indices = indices % x.shape[2]
+    row_indices = indices // x.shape[2]
+    return torch.stack((col_indices, row_indices), dim=1)
+
 
 def pre_bgr_image(image, is_gray=False):
     if not is_gray:
