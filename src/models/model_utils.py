@@ -1,4 +1,6 @@
 import numpy as np
+import torch
+import torch.nn.functional as F
 import cv2
 from numba import njit, prange
 
@@ -18,22 +20,21 @@ def extract_patches(img: np.ndarray, keypoints: np.ndarray, patch_size: int = 24
     padding = patch_size // 2
 
     # Pad the image with zeros
-    padded_img = cv2.copyMakeBorder(img.squeeze(0), padding, padding, padding, padding, cv2.BORDER_CONSTANT, value=0)
+    padded_img = F.pad(img.squeeze(0), (padding, padding, padding, padding), mode='constant', value=0)
 
     # Extract the patches centered around the keypoints
     patches = [padded_img[kp[1]:kp[1] + 2 * padding, kp[0]:kp[0] + 2 * padding]
                for kp in keypoints]
-    return np.array(patches)
+    return torch.stack(patches)
 
-
-@njit('i8[:,::1](f4[:,:,::1])', cache=True, parallel=True)
+# @torch.jit.script  # TODO
 def speedy_bargmax2d(x):
-    max_indices = np.zeros((x.shape[0], 2), dtype=np.int64)
-    for i in prange(x.shape[0]):
-        maxTemp = np.argmax(x[i])
-        max_indices[i] = [maxTemp % x.shape[2], maxTemp // x.shape[2]]
+    max_indices = torch.zeros(x.shape[0], 2, dtype=torch.int64, device=x.device)
+    for i in range(x.shape[0]):
+        max_temp = torch.argmax(x[i].view(-1))
+        max_indices[i, 0] = max_temp % x.shape[2]
+        max_indices[i, 1] = max_temp // x.shape[2]
     return max_indices
-
 
 def pre_bgr_image(image, is_gray=False):
     if not is_gray:
@@ -59,12 +60,12 @@ def pred_argmax(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: int):
         the null id of identities
     """
     if loc_hat.ndim == 3:
-        loc_hat = np.expand_dims(loc_hat, axis=0)
-        ids_hat = np.expand_dims(ids_hat, axis=0)
+        loc_hat = torch.expand_dims(loc_hat, axis=0)
+        ids_hat = torch.expand_dims(ids_hat, axis=0)
 
     # (N, C, H/8, W/8)
-    ids_argmax = np.argmax(ids_hat, axis=1)
-    loc_argmax = np.argmax(loc_hat, axis=1)
+    ids_argmax = torch.argmax(ids_hat, axis=1)
+    loc_argmax = torch.argmax(loc_hat, axis=1)
 
     # Mask ids_hat using loc_hat dust_bin
     # This way we will do an argmax only over best ids with valid location
@@ -103,11 +104,11 @@ def label_to_keypoints(loc: np.ndarray, ids: np.ndarray, dust_bin_ids: int):
 
     # Find in which regions the corners are
     mask = ids != dust_bin_ids
-    roi = np.argwhere(mask)
+    roi = torch.argwhere(mask)
     ids_found = ids[mask]
     region_pixel = loc[mask]
 
     # Recover exact pixel in original resolution
     xs = 8 * roi[:, -1] + (region_pixel % 8)
-    ys = 8 * roi[:, -2] + (region_pixel / 8).astype(int)
-    return np.c_[xs, ys], ids_found
+    ys = 8 * roi[:, -2] + (region_pixel / 8).to(torch.int)
+    return torch.cat((xs.unsqueeze(1), ys.unsqueeze(1)), dim=1), ids_found

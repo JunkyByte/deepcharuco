@@ -92,14 +92,12 @@ class dcModel(torch.nn.Module):
         tuple(np.ndarray, np.ndarray)
             loc, ids output
         """
-        device = "cuda" if next(self.parameters()).is_cuda else 'cpu'
+        device = next(self.parameters()).device
         with torch.no_grad():
             if preprocessing:
                 img = pre_bgr_image(img, is_gray=img.ndim == 2)
             img = torch.tensor(np.expand_dims(img, axis=0), device=device)
             loc_hat, ids_hat = self(img).values()
-            loc_hat = loc_hat.cpu().numpy()
-            ids_hat = ids_hat.cpu().numpy()
         return loc_hat, ids_hat
 
 

@@ -100,16 +100,15 @@ class RefineNet(torch.nn.Module):
             and corners in 64x64 window
         """
         assert patches.shape[-2:] == (24, 24)
-        device = "cuda" if next(self.parameters()).is_cuda else 'cpu'
+        device = next(self.parameters()).device
         with torch.no_grad():
             if patches.ndim == 3:
-                patches = np.expand_dims(patches, axis=1)
-            patches = torch.tensor(patches, device=device)
+                patches = torch.unsqueeze(patches, dim=1)
             loc_hat = self(patches)
-            loc_hat = loc_hat[:, 0, ...].cpu().numpy()
+            loc_hat = loc_hat[:, 0, ...] # TODO: REMOVE ELLIPSIS
 
         # loc_hat: (N, H/8, W/8)
-        corners = speedy_bargmax2d(loc_hat)
+        corners = speedy_bargmax2d(loc_hat)  # TODO Inspect this, might be faster with naive implementation due to small input size
 
         # Add keypoints to center on keypoints, divide by 8 to account for 8x resolution
         corners_og = (corners - 32) / 8 + keypoints  # Is 32 right? :)
