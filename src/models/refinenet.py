@@ -82,6 +82,7 @@ class RefineNet(torch.nn.Module):
 
         return loc
 
+    @profile
     def infer_patches(self, patches: np.ndarray,
                       keypoints: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """

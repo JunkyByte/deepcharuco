@@ -84,6 +84,7 @@ def load_models(deepc_ckpt: str, refinenet_ckpt: Optional[str] = None, n_ids: in
 
     return deepc, refinenet
 
+
 def inf_no_prof(device):
     import os
     from gridwindow import MagicGrid
@@ -102,7 +103,7 @@ def inf_no_prof(device):
     deepc, refinenet = load_models(deepc_path, refinenet_path, n_ids=config.n_ids, device=device)
 
     if "DISPLAY" in os.environ:
-        w = MagicGrid(1200, 1200, waitKey=0)
+        w = MagicGrid(1200, 1200, waitKey=300)  # TODO: Change to 0
 
     # Inference test on custom image
     SAMPLE_IMAGES = './reference/samples_test/IMG_7412.png'
