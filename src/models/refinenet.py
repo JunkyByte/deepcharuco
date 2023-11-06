@@ -108,7 +108,7 @@ class RefineNet(torch.nn.Module):
             loc_hat = loc_hat[:, 0, ...] # TODO: REMOVE ELLIPSIS
 
         # loc_hat: (N, H/8, W/8)
-        corners = speedy_bargmax2d(loc_hat)  # TODO Inspect this, might be faster with naive implementation due to small input size
+        corners = speedy_bargmax2d(loc_hat)
 
         # Add keypoints to center on keypoints, divide by 8 to account for 8x resolution
         corners_og = (corners - 32) / 8 + keypoints  # Is 32 right? :)

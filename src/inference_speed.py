@@ -29,46 +29,45 @@ def solve_pnp(keypoints, col_count, row_count, square_len, camera_matrix, dist_c
     return ret, rvec, tvec
 
 
+@profile
 def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
                 refinenet: Optional[lRefineNet] = None,
-                draw_pred: bool = False):
+                draw_pred: bool = False,
+                device='cpu'):
     """
     Do full inference on a BGR image
     """
 
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img_gray = pre_bgr_image(img_gray, is_gray=True)
+    img_gray = pre_bgr_image(img_gray)
+    img_gray = torch.tensor(img_gray, device=device)  # TODO check me
     loc_hat, ids_hat = deepc.infer_image(img_gray, preprocessing=False)
-    kpts_hat, ids_found = pred_to_keypoints(loc_hat, ids_hat, dust_bin_ids)
+    keypoints, ids_found = pred_to_keypoints(loc_hat, ids_hat, dust_bin_ids)
 
     # Draw predictions in RED
     if draw_pred:
-        img = draw_inner_corners(img, kpts_hat.cpu().numpy(), ids_found.cpu().numpy(), radius=3,
+        img = draw_inner_corners(img, keypoints.cpu().numpy(), ids_found.cpu().numpy(), radius=3,
                                  draw_ids=True, color=(0, 0, 255))
 
     if ids_found.shape[0] == 0:
         return np.array([]), img
 
-    if refinenet is not None:  # TODO TORCH TENSOR FROM PREVIOUS CALL
-        # print(img_gray.shape, img_gray.dtype)  # TODO BE SURE TO RESPECT DTYPE AND SHAPE
-        patches = extract_patches(torch.tensor(img_gray, dtype=torch.float32).to('mps'), kpts_hat)
-
+    if refinenet is not None:
+        patches = extract_patches(img_gray, keypoints)
         # Extract 8x refined corners (in original resolution)
-        refined_kpts, _ = refinenet.infer_patches(patches, kpts_hat)
+        keypoints, _ = refinenet.infer_patches(patches, keypoints)
 
-        refined_kpts = refined_kpts.cpu().numpy()
-        ids_found = ids_found.cpu().numpy()
+    keypoints = keypoints.cpu().numpy()
+    ids_found = ids_found.cpu().numpy()
 
+    if draw_pred and refinenet is not None:
         # Draw refinenet refined corners in yellow
         if draw_pred:
-            img = draw_inner_corners(img, refined_kpts, ids_found,
+            img = draw_inner_corners(img, keypoints, ids_found,
                                      draw_ids=False, radius=1, color=(0, 255, 255))
 
-    keypoints = refined_kpts if refinenet else kpts_hat
-    keypoints = np.array([[k[0], k[1], idx] for k, idx in sorted(zip(keypoints,
-                                                                     ids_found),
-                                                                 key=lambda x:
-                                                                 x[1])])
+    keypoints = np.array([[k[0], k[1], idx] for k, idx in sorted(zip(keypoints, ids_found),
+                                                                 key=lambda x: x[1])])
     return keypoints, img
 
 
@@ -85,7 +84,7 @@ def load_models(deepc_ckpt: str, refinenet_ckpt: Optional[str] = None, n_ids: in
 
     return deepc, refinenet
 
-def inf_no_prof():
+def inf_no_prof(device):
     import os
     from gridwindow import MagicGrid
     from utils import pixel_error
@@ -100,7 +99,6 @@ def inf_no_prof():
     # Load models
     deepc_path = "./reference/longrun-epoch=99-step=369700.ckpt"
     refinenet_path = "./reference/second-refinenet-epoch-100-step=373k.ckpt"
-    device = 'mps'
     deepc, refinenet = load_models(deepc_path, refinenet_path, n_ids=config.n_ids, device=device)
 
     if "DISPLAY" in os.environ:
@@ -113,7 +111,7 @@ def inf_no_prof():
         img = cv2.imread(p)
 
         # Run inference
-        keypoints, out_img_dc = inf(img, config.n_ids, deepc, refinenet)
+        keypoints, out_img_dc = inf(img, config.n_ids, deepc, refinenet, device)
         print(keypoints)
 
         # cv2 inference
@@ -127,18 +125,20 @@ def inf_no_prof():
                 break
 
 
-def inf(img, n_ids, deepc, refinenet):
+def inf(img, n_ids, deepc, refinenet, device):
     import time
-
-    n = 10
+    
+    n = 100
     t = time.time()
     for i in range(n):
         keypoints, out_img_dc = infer_image(img, n_ids, deepc,
                                             refinenet,
-                                            draw_pred=True)
+                                            draw_pred=True,
+                                            device=device)
     print(f"\033[95m--->INFERENCE TIME: {(time.time() - t)/n:0.4f} \033[0m")
     return keypoints, out_img_dc
 
 
 if __name__ == '__main__':
-    inf_no_prof()
+    device='mps'
+    inf_no_prof(device)

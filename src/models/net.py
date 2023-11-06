@@ -96,7 +96,9 @@ class dcModel(torch.nn.Module):
         with torch.no_grad():
             if preprocessing:
                 img = pre_bgr_image(img, is_gray=img.ndim == 2)
-            img = torch.tensor(np.expand_dims(img, axis=0), device=device)
+                img = torch.tensor(np.expand_dims(img, axis=0), device=device)  # TODO check me
+            else: # TODO
+                img = img[None, ...]
             loc_hat, ids_hat = self(img).values()
         return loc_hat, ids_hat
 

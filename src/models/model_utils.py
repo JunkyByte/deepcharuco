@@ -35,9 +35,7 @@ def speedy_bargmax2d(x):
     return torch.stack((col_indices, row_indices), dim=1)
 
 
-def pre_bgr_image(image, is_gray=False):
-    if not is_gray:
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+def pre_bgr_image(image):
     image = image[..., np.newaxis].astype(np.float32)
     image = (image - 128) / 255  # Well we started with this one so...
     image = image.transpose((2, 0, 1))

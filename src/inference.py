@@ -37,7 +37,7 @@ def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
     """
 
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img_gray = pre_bgr_image(img_gray, is_gray=True)
+    img_gray = pre_bgr_image(img_gray)
     loc_hat, ids_hat = deepc.infer_image(img_gray, preprocessing=False)
     kpts_hat, ids_found = pred_to_keypoints(loc_hat, ids_hat, dust_bin_ids)
 
