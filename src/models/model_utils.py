@@ -1,4 +1,6 @@
 import numpy as np
+import torch
+import torch.nn.functional as F
 import cv2
 from numba import njit, prange
 
@@ -14,65 +16,69 @@ def corner_sub_pix(img, corners, region=(8, 8)):
                             region, (-1, -1), term).squeeze(1)
 
 
-def extract_patches(img: np.ndarray, keypoints: np.ndarray, patch_size: int = 24) -> np.ndarray:
-    padding = patch_size // 2
-
+def extract_patches(img: torch.Tensor, keypoints: torch.Tensor, patch_size: int = 24) -> torch.Tensor:
     # Pad the image with zeros
-    padded_img = cv2.copyMakeBorder(img.squeeze(0), padding, padding, padding, padding, cv2.BORDER_CONSTANT, value=0)
+    padding = patch_size // 2
+    padded_img = F.pad(img.squeeze(0), (padding, padding, padding, padding), mode='constant', value=0)
 
     # Extract the patches centered around the keypoints
-    patches = [padded_img[kp[1]:kp[1] + 2 * padding, kp[0]:kp[0] + 2 * padding]
-               for kp in keypoints]
-    return np.array(patches)
+    # This is correct because we added padding in all sides so we should add it to keypoints
+    # and then to center we should take xs and ys -padding (so result is equal to directly taking)
+    # Conceptually this is what we do, this has been optimized and is now cryptic
+    # patches = padded_img[keypoints[:, 1]:keypoints[:, 1] + patch_size,
+    #                      keypoints[:, 0]:keypoints[:, 0] + patch_size]
+
+    ys = keypoints[:, 1, None] + torch.arange(patch_size, device=padded_img.device)
+    p1 = torch.index_select(padded_img, 0, ys.view(-1,)).view(keypoints.shape[0], -1, padded_img.shape[-1]) 
+
+    xs = (keypoints[:, 0, None] + torch.arange(patch_size, device=padded_img.device)).unsqueeze(1)
+    patches = torch.gather(p1, 2, xs.expand(-1, p1.size(1), -1))
+    return patches
 
 
-@njit('i8[:,::1](f4[:,:,::1])', cache=True, parallel=True)
 def speedy_bargmax2d(x):
-    max_indices = np.zeros((x.shape[0], 2), dtype=np.int64)
-    for i in prange(x.shape[0]):
-        maxTemp = np.argmax(x[i])
-        max_indices[i] = [maxTemp % x.shape[2], maxTemp // x.shape[2]]
-    return max_indices
+    _, indices = torch.max(x.view(x.shape[0], -1), dim=1)
+    col_indices = indices % x.shape[2]
+    row_indices = indices // x.shape[2]
+    return torch.stack((col_indices, row_indices), dim=1)
 
 
-def pre_bgr_image(image, is_gray=False):
-    if not is_gray:
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+def pre_bgr_image(image):
     image = image[..., np.newaxis].astype(np.float32)
     image = (image - 128) / 255  # Well we started with this one so...
     image = image.transpose((2, 0, 1))
     return image
 
 
-def pred_argmax(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: int):
+def pred_argmax(loc_hat: torch.Tensor, ids_hat: torch.Tensor, dust_bin_ids: int):
     """
     Convert a model prediction to label format having class indices at each position.
     Use label_to_keypoints to convert the returned label to keypoints
 
     Parameters
     ----------
-    loc_hat: np.ndarray
+    loc_hat: torch.Tensor
         localization output of the model
-    ids_hat: np.ndarray
+    ids_hat: torch.Tensor
         identities output of the model
     dust_bin_ids: int
         the null id of identities
     """
     if loc_hat.ndim == 3:
-        loc_hat = np.expand_dims(loc_hat, axis=0)
-        ids_hat = np.expand_dims(ids_hat, axis=0)
+        loc_hat = torch.expand_dims(loc_hat, axis=0)
+        ids_hat = torch.expand_dims(ids_hat, axis=0)
 
     # (N, C, H/8, W/8)
-    ids_argmax = np.argmax(ids_hat, axis=1)
-    loc_argmax = np.argmax(loc_hat, axis=1)
+    ids_argmax = torch.argmax(ids_hat, dim=1)
+    loc_argmax = torch.argmax(loc_hat, dim=1)
 
     # Mask ids_hat using loc_hat dust_bin
     # This way we will do an argmax only over best ids with valid location
-    ids_argmax[loc_argmax == 64] = dust_bin_ids
+    ids_argmax = torch.where(loc_argmax == 64, dust_bin_ids, ids_argmax)
     return loc_argmax, ids_argmax
 
 
-def pred_to_keypoints(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: int):
+def pred_to_keypoints(loc_hat: torch.Tensor, ids_hat: torch.Tensor, dust_bin_ids: int):
     """
     Transform a model prediction to keypoints with ids and optionally confidences
     """
@@ -82,7 +88,7 @@ def pred_to_keypoints(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: in
     return kpts, ids
 
 
-def label_to_keypoints(loc: np.ndarray, ids: np.ndarray, dust_bin_ids: int):
+def label_to_keypoints(loc: torch.Tensor, ids: torch.Tensor, dust_bin_ids: int):
     """
     Convert a label like format with class indices to keypoints in original resolution
 
@@ -96,18 +102,23 @@ def label_to_keypoints(loc: np.ndarray, ids: np.ndarray, dust_bin_ids: int):
         the null id of identities
     Returns
     -------
-    tuple(np.ndarray, np.ndarray)
+    tuple(torch.Tensor, torch.Tensor)
         array of keypoints and associated ids
     """
     assert loc.ndim == 3 and ids.ndim == 3
 
     # Find in which regions the corners are
     mask = ids != dust_bin_ids
-    roi = np.argwhere(mask)
+
+    # Find the indices where the mask is True
+    indices = torch.nonzero(mask, as_tuple=False)
+
+    # Use the indices to extract the corresponding values
     ids_found = ids[mask]
     region_pixel = loc[mask]
 
     # Recover exact pixel in original resolution
-    xs = 8 * roi[:, -1] + (region_pixel % 8)
-    ys = 8 * roi[:, -2] + (region_pixel / 8).astype(int)
-    return np.c_[xs, ys], ids_found
+    xs = 8 * indices[:, -1] + (region_pixel % 8)
+    ys = 8 * indices[:, -2] + (region_pixel // 8).to(torch.int)
+
+    return torch.cat((xs.unsqueeze(1), ys.unsqueeze(1)), dim=1), ids_found

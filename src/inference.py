@@ -31,40 +31,42 @@ def solve_pnp(keypoints, col_count, row_count, square_len, camera_matrix, dist_c
 
 def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
                 refinenet: Optional[lRefineNet] = None,
-                draw_pred: bool = False):
+                draw_pred: bool = False,
+                device='cpu'):
     """
     Do full inference on a BGR image
     """
 
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img_gray = pre_bgr_image(img_gray, is_gray=True)
-    loc_hat, ids_hat = deepc.infer_image(img_gray, preprocessing=False)
-    kpts_hat, ids_found = pred_to_keypoints(loc_hat, ids_hat, dust_bin_ids)
+    img_gray = pre_bgr_image(img_gray)
+    img_gray = torch.tensor(img_gray, device=device)  # TODO check me
+    loc_hat, ids_hat = deepc.infer_image(img_gray)
+    keypoints, ids_found = pred_to_keypoints(loc_hat, ids_hat, dust_bin_ids)
 
     # Draw predictions in RED
     if draw_pred:
-        img = draw_inner_corners(img, kpts_hat, ids_found, radius=3,
+        img = draw_inner_corners(img, keypoints.cpu().numpy(), ids_found.cpu().numpy(), radius=3,
                                  draw_ids=True, color=(0, 0, 255))
 
     if ids_found.shape[0] == 0:
         return np.array([]), img
 
     if refinenet is not None:
-        patches = extract_patches(img_gray, kpts_hat)
-
+        patches = extract_patches(img_gray, keypoints)
         # Extract 8x refined corners (in original resolution)
-        refined_kpts, _ = refinenet.infer_patches(patches, kpts_hat)
+        keypoints, _ = refinenet.infer_patches(patches, keypoints)
 
+    keypoints = keypoints.cpu().numpy()
+    ids_found = ids_found.cpu().numpy()
+
+    if draw_pred and refinenet is not None:
         # Draw refinenet refined corners in yellow
         if draw_pred:
-            img = draw_inner_corners(img, refined_kpts, ids_found,
+            img = draw_inner_corners(img, keypoints, ids_found,
                                      draw_ids=False, radius=1, color=(0, 255, 255))
 
-    keypoints = refined_kpts if refinenet else kpts_hat
-    keypoints = np.array([[k[0], k[1], idx] for k, idx in sorted(zip(keypoints,
-                                                                     ids_found),
-                                                                 key=lambda x:
-                                                                 x[1])])
+    keypoints = np.array([[k[0], k[1], idx] for k, idx in sorted(zip(keypoints, ids_found),
+                                                                 key=lambda x: x[1])])
     return keypoints, img
 
 
@@ -98,7 +100,11 @@ if __name__ == '__main__':
     # Load models
     deepc_path = "./reference/longrun-epoch=99-step=369700.ckpt"
     refinenet_path = "./reference/second-refinenet-epoch-100-step=373k.ckpt"
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'cpu'
+    if torch.cuda.is_available():
+        device = 'cuda'
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        device = 'mps'
     deepc, refinenet = load_models(deepc_path, refinenet_path, n_ids=config.n_ids, device=device)
 
     # Inference test on validation data

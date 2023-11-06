@@ -25,6 +25,9 @@ On the left our results, on the right `cv2.aruco` for comparison. Corners found 
 
 ## Overview
 
+#### NEWS: 🚀 You can now run inference on osx using MPS (>30fps on M2 Air)
+Current HEAD has a few optimizations targetting osx, training runs but is untested. Please refer to [this commit](https://github.com/JunkyByte/deepcharuco/commit/6312bf6e9cad10b392beb0936f1acbf5e8064919) for a reliable training setup.
+
 ### Architecture
 ![architecture](https://i.imgur.com/W8TnGgm.png)
 The idea is to build a network which can localize charuco inner corners and recognize the ids of the corners found. The trained network is fit on a particular board configuration, in the case of the paper the board has `12` aruco markers for a total of 16 inner corners ([board image](src/reference/board_image_240x240.jpg)).
@@ -37,9 +40,10 @@ The network is divided into two parts, what we call `DeepCharuco` which is a ful
 `RefineNet` takes a `(1, 24, 24)` patch around a corner and outputs a `(1, 64, 64)` tensor representing the probability that the corner is in a certain (sub-)pixel in `8x` resolution of the central `8x8` region of the patch.  
 
 ### Benchmarks (inference)
-Running on GTX1080Ti GPU, inference on a single `320x240` image stored on RAM (so there's also data transfer to gpu) and all `16` keypoints found (maximum computation case for RefineNet)
-- DeepCharuco + Refinenet: `~192.5 fps`
-- DeepCharuco (only): `~359 fps`
+Running on GTX1080Ti GPU
+- Full pipeline: `> 200 fps`
+Running on macbook air M2 using MPS
+- Full pipeline: `>= 30 fps`
 
 ## Setup for training (and inference on val data)
 `requirements.txt` should contain a valid list of requirements, notice `opencv-contrib` is `<4.7`.  
@@ -125,14 +129,15 @@ from inference import infer_image, load_models
 deepc_path = './reference/longrun-epoch=99-step=369700.ckpt'
 refinenet_path = './reference/second-refinenet-epoch-100-step=373k.ckpt'
 n_ids = 16  # The number of corners (models pretrained use 16 for default board)
-deepc, refinenet = load_models(deepc_path, refinenet_path, n_ids, device="cuda")  # use device: cpu / cuda
+device = 'cuda'   # use device: cpu / mps / cuda
+deepc, refinenet = load_models(deepc_path, refinenet_path, n_ids, device=device)
 
 # Run inference on BGR image
 img = cv2.imread('reference/samples_test/IMG_7412.png')
 
 # The out_img will have corners plotted on it if draw_pred is True
 # The keypoints format is (x, y, id_corner)
-keypoints, out_img = infer_image(img, n_ids, deepc, refinenet, draw_pred=True)
+keypoints, out_img = infer_image(img, n_ids, deepc, refinenet, draw_pred=True, device=device)
 ```
 
 Now that we obtained the keypoints we can use a PnP algorithm to recover the board pose as follows:  

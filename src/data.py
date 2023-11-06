@@ -85,7 +85,7 @@ class CharucoDataset(Dataset):
                 import sys
                 sys.exit()
 
-        image = pre_bgr_image(image)
+        image = pre_bgr_image(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY))
         sample = {
             'image': image,
             'label': (loc, ids),

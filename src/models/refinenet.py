@@ -82,8 +82,8 @@ class RefineNet(torch.nn.Module):
 
         return loc
 
-    def infer_patches(self, patches: np.ndarray,
-                      keypoints: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def infer_patches(self, patches: torch.Tensor,
+                      keypoints: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Inference on 24x24 patches, assuming pre processing
 
@@ -100,13 +100,12 @@ class RefineNet(torch.nn.Module):
             and corners in 64x64 window
         """
         assert patches.shape[-2:] == (24, 24)
-        device = "cuda" if next(self.parameters()).is_cuda else 'cpu'
+        device = next(self.parameters()).device
         with torch.no_grad():
             if patches.ndim == 3:
-                patches = np.expand_dims(patches, axis=1)
-            patches = torch.tensor(patches, device=device)
+                patches = torch.unsqueeze(patches, dim=1)
             loc_hat = self(patches)
-            loc_hat = loc_hat[:, 0, ...].cpu().numpy()
+            loc_hat = loc_hat[:, 0, ...] # TODO: REMOVE ELLIPSIS
 
         # loc_hat: (N, H/8, W/8)
         corners = speedy_bargmax2d(loc_hat)
@@ -141,8 +140,8 @@ class lRefineNet(pl.LightningModule):
     def forward(self, x):
         return self.model(x)
 
-    def infer_patches(self, patches: np.ndarray,
-                      keypoints: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def infer_patches(self, patches: torch.Tensor,
+                      keypoints: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         return self.model.infer_patches(patches, keypoints)
 
     def validation_step(self, batch, batch_idx):
