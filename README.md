@@ -26,7 +26,7 @@ On the left our results, on the right `cv2.aruco` for comparison. Corners found 
 ## Overview
 
 #### NEWS: 🚀 You can now run inference on osx using MPS (>30fps on M2 Air)
-Current HEAD has a few optimizations targetting osx, training runs but is untested. Please refer to 6312bf6 for a reliable training setup.
+Current HEAD has a few optimizations targetting osx, training runs but is untested. Please refer to [this commit](https://github.com/JunkyByte/deepcharuco/commit/6312bf6e9cad10b392beb0936f1acbf5e8064919) for a reliable training setup.
 
 ### Architecture
 ![architecture](https://i.imgur.com/W8TnGgm.png)
