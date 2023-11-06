@@ -82,9 +82,8 @@ class RefineNet(torch.nn.Module):
 
         return loc
 
-    @profile
-    def infer_patches(self, patches: np.ndarray,
-                      keypoints: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def infer_patches(self, patches: torch.Tensor,
+                      keypoints: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Inference on 24x24 patches, assuming pre processing
 
@@ -141,8 +140,8 @@ class lRefineNet(pl.LightningModule):
     def forward(self, x):
         return self.model(x)
 
-    def infer_patches(self, patches: np.ndarray,
-                      keypoints: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def infer_patches(self, patches: torch.Tensor,
+                      keypoints: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         return self.model.infer_patches(patches, keypoints)
 
     def validation_step(self, batch, batch_idx):

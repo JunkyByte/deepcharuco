@@ -79,26 +79,22 @@ class dcModel(torch.nn.Module):
         output = {'loc': loc, 'ids': ids}
         return output
 
-    def infer_image(self, img: np.ndarray, preprocessing=True) -> tuple[np.ndarray, np.ndarray]:
+    def infer_image(self, img: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        Inference on a single BGR or gray image, do preprocessing if True
+        Inference on a single BGR or gray image
 
         Parameters
         ----------
-        img : np.ndarray
+        img : torch.Tensor
             The bgr image
         Returns
         -------
-        tuple(np.ndarray, np.ndarray)
+        tuple(torch.Tensor, torch.Tensor)
             loc, ids output
         """
         device = next(self.parameters()).device
         with torch.no_grad():
-            if preprocessing:
-                img = pre_bgr_image(img, is_gray=img.ndim == 2)
-                img = torch.tensor(np.expand_dims(img, axis=0), device=device)  # TODO check me
-            else: # TODO
-                img = img[None, ...]
+            img = img[None]
             loc_hat, ids_hat = self(img).values()
         return loc_hat, ids_hat
 
@@ -128,8 +124,8 @@ class lModel(pl.LightningModule):
     def forward(self, x):
         return self.model(x)
 
-    def infer_image(self, img: np.ndarray, preprocessing: bool = True) -> tuple[np.ndarray, np.ndarray]:
-        return self.model.infer_image(img, preprocessing)
+    def infer_image(self, img: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        return self.model.infer_image(img)
 
     def validation_step(self, batch, batch_idx):
         # training_step defines the train loop.

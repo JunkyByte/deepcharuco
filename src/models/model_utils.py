@@ -15,36 +15,27 @@ def corner_sub_pix(img, corners, region=(8, 8)):
                                                 axis=1).astype(np.float32),
                             region, (-1, -1), term).squeeze(1)
 
-def take_per_row_strided(A, indx, num_elem=2):
-    m, n = A.shape
-    A = A.view(-1)
-    s0 = A.stride()[0]
-    l_indx = indx + n * torch.arange(len(indx), dtype=torch.int64)
-    out = A[l_indx]
-    out = out.view(len(A) - num_elem + 1, num_elem)
-    A = A.view(m, n)
-    return out
 
-@profile
-def extract_patches(img: np.ndarray, keypoints: np.ndarray, patch_size: int = 24) -> np.ndarray:
-    padding = patch_size // 2
-
+def extract_patches(img: torch.Tensor, keypoints: torch.Tensor, patch_size: int = 24) -> torch.Tensor:
     # Pad the image with zeros
+    padding = patch_size // 2
     padded_img = F.pad(img.squeeze(0), (padding, padding, padding, padding), mode='constant', value=0)
 
     # Extract the patches centered around the keypoints
-    # Conceptually this is what we do, this was optimized and is now cryptic
-    # patches = padded_img[keypoints[:, 1]:keypoints[:, 1] + 2 * padding,
-    #                      keypoints[:, 0]:keypoints[:, 0] + 2 * padding]
-    
-    xs = keypoints[:, 1, None] + torch.arange(2 * padding, device=padded_img.device)
-    p1 = torch.index_select(padded_img, 0, xs.view(-1,)).view(8, -1, padded_img.shape[-1]) 
+    # This is correct because we added padding in all sides so we should add it to keypoints
+    # and then to center we should take xs and ys -padding (so result is equal to directly taking)
+    # Conceptually this is what we do, this has been optimized and is now cryptic
+    # patches = padded_img[keypoints[:, 1]:keypoints[:, 1] + patch_size,
+    #                      keypoints[:, 0]:keypoints[:, 0] + patch_size]
 
-    ys = (keypoints[:, 0, None] + torch.arange(2 * padding, device=padded_img.device)).unsqueeze(1)
-    patches = torch.gather(p1, 2, ys.expand(-1, p1.size(1), -1))
+    ys = keypoints[:, 1, None] + torch.arange(patch_size, device=padded_img.device)
+    p1 = torch.index_select(padded_img, 0, ys.view(-1,)).view(keypoints.shape[0], -1, padded_img.shape[-1]) 
+
+    xs = (keypoints[:, 0, None] + torch.arange(patch_size, device=padded_img.device)).unsqueeze(1)
+    patches = torch.gather(p1, 2, xs.expand(-1, p1.size(1), -1))
     return patches
 
-# @torch.jit.script  # TODO
+
 def speedy_bargmax2d(x):
     _, indices = torch.max(x.view(x.shape[0], -1), dim=1)
     col_indices = indices % x.shape[2]
@@ -59,16 +50,16 @@ def pre_bgr_image(image):
     return image
 
 
-def pred_argmax(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: int):
+def pred_argmax(loc_hat: torch.Tensor, ids_hat: torch.Tensor, dust_bin_ids: int):
     """
     Convert a model prediction to label format having class indices at each position.
     Use label_to_keypoints to convert the returned label to keypoints
 
     Parameters
     ----------
-    loc_hat: np.ndarray
+    loc_hat: torch.Tensor
         localization output of the model
-    ids_hat: np.ndarray
+    ids_hat: torch.Tensor
         identities output of the model
     dust_bin_ids: int
         the null id of identities
@@ -78,17 +69,16 @@ def pred_argmax(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: int):
         ids_hat = torch.expand_dims(ids_hat, axis=0)
 
     # (N, C, H/8, W/8)
-    ids_argmax = torch.argmax(ids_hat, axis=1)
-    loc_argmax = torch.argmax(loc_hat, axis=1)
+    ids_argmax = torch.argmax(ids_hat, dim=1)
+    loc_argmax = torch.argmax(loc_hat, dim=1)
 
     # Mask ids_hat using loc_hat dust_bin
     # This way we will do an argmax only over best ids with valid location
     ids_argmax = torch.where(loc_argmax == 64, dust_bin_ids, ids_argmax)
-
     return loc_argmax, ids_argmax
 
 
-def pred_to_keypoints(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: int):
+def pred_to_keypoints(loc_hat: torch.Tensor, ids_hat: torch.Tensor, dust_bin_ids: int):
     """
     Transform a model prediction to keypoints with ids and optionally confidences
     """
@@ -98,7 +88,7 @@ def pred_to_keypoints(loc_hat: np.ndarray, ids_hat: np.ndarray, dust_bin_ids: in
     return kpts, ids
 
 
-def label_to_keypoints(loc: np.ndarray, ids: np.ndarray, dust_bin_ids: int):
+def label_to_keypoints(loc: torch.Tensor, ids: torch.Tensor, dust_bin_ids: int):
     """
     Convert a label like format with class indices to keypoints in original resolution
 
@@ -112,7 +102,7 @@ def label_to_keypoints(loc: np.ndarray, ids: np.ndarray, dust_bin_ids: int):
         the null id of identities
     Returns
     -------
-    tuple(np.ndarray, np.ndarray)
+    tuple(torch.Tensor, torch.Tensor)
         array of keypoints and associated ids
     """
     assert loc.ndim == 3 and ids.ndim == 3
