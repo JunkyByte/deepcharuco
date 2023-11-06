@@ -129,14 +129,15 @@ from inference import infer_image, load_models
 deepc_path = './reference/longrun-epoch=99-step=369700.ckpt'
 refinenet_path = './reference/second-refinenet-epoch-100-step=373k.ckpt'
 n_ids = 16  # The number of corners (models pretrained use 16 for default board)
-deepc, refinenet = load_models(deepc_path, refinenet_path, n_ids, device="cuda")  # use device: cpu / mps / cuda
+device = 'cuda'   # use device: cpu / mps / cuda
+deepc, refinenet = load_models(deepc_path, refinenet_path, n_ids, device=device)
 
 # Run inference on BGR image
 img = cv2.imread('reference/samples_test/IMG_7412.png')
 
 # The out_img will have corners plotted on it if draw_pred is True
 # The keypoints format is (x, y, id_corner)
-keypoints, out_img = infer_image(img, n_ids, deepc, refinenet, draw_pred=True)
+keypoints, out_img = infer_image(img, n_ids, deepc, refinenet, draw_pred=True, device=device)
 ```
 
 Now that we obtained the keypoints we can use a PnP algorithm to recover the board pose as follows:  
