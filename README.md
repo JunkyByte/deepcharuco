@@ -41,7 +41,8 @@ The network is divided into two parts, what we call `DeepCharuco` which is a ful
 
 ### Benchmarks (inference)
 Running on GTX1080Ti GPU
-- Full pipeline: `> 200 fps`  
+- Full pipeline: `> 200 fps`
+  
 Running on macbook air M2 using MPS
 - Full pipeline: `>= 30 fps`
 
