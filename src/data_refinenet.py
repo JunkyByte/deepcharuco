@@ -157,7 +157,7 @@ class RefineDataset(Dataset):
                 import sys
                 sys.exit()
 
-        patches = [pre_bgr_image(p) for p in patches]
+        patches = [pre_bgr_image(cv2.cvtColor(p, cv2.COLOR_BGR2GRAY)) for p in patches]
         heatmaps = [h[None, ...] for h in heatmaps]
 
         # Must have same length for each batch.
