@@ -101,7 +101,7 @@ class RefineNet(torch.nn.Module):
         assert patches.shape[-2:] == (24, 24)
         if patches.ndim == 3:
             patches = torch.unsqueeze(patches, dim=1)
-        loc_hat = self._forward(patches).unsqueeze(1)
+        loc_hat = self._forward(patches).squeeze(1)
 
         # loc_hat: (N, H/8, W/8)
         corners = speedy_bargmax2d(loc_hat)
@@ -115,7 +115,7 @@ class RefineNet(torch.nn.Module):
         """
         Tensorrt will call this. Use infer_patches if calling from torch.
         """
-        loc_hat = self._forward(patches).unsqueeze(1)
+        loc_hat = self._forward(patches.unsqueeze(1)).squeeze(1)
         corners = speedy_bargmax2d(loc_hat)
         corners_og = (corners - 32) / 8 + keypoints  # Is 32 right? :)
         return corners_og

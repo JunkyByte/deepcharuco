@@ -45,7 +45,10 @@ def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img_gray = pre_bgr_image(img_gray)
     img_gray = torch.tensor(img_gray, device=device)  # TODO check me
-    loc_hat, ids_hat = deepc.infer_image(img_gray)
+    if trt:
+        loc_hat, ids_hat = deepc.forward(img_gray[None]) # TODO SAME SIGN.
+    else:
+        loc_hat, ids_hat = deepc.infer_image(img_gray[None])
     keypoints, ids_found = pred_to_keypoints(loc_hat, ids_hat, dust_bin_ids)
 
     # Draw predictions in RED
@@ -59,7 +62,11 @@ def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
     if refinenet is not None:
         patches = extract_patches(img_gray, keypoints)
         # Extract 8x refined corners (in original resolution)
-        keypoints, _ = refinenet.infer_patches(patches, keypoints)
+        if trt:
+            # TODO: RIGHT NOW IM AN ORACLE AND I KNOW THE NUMBER OF KEYPOINTS
+            keypoints = refinenet.forward(patches, keypoints.to(torch.float))  # TODO SAME SIGN.
+        else:
+            keypoints = refinenet.infer_patches(patches, keypoints)
 
     keypoints = keypoints.cpu().numpy()
     ids_found = ids_found.cpu().numpy()
