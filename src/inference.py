@@ -11,11 +11,6 @@ from models.model_utils import pred_to_keypoints, extract_patches, pre_bgr_image
 from models.net import lModel, dcModel
 from models.refinenet import RefineNet, lRefineNet
 
-try:
-    import torch_tensorrt
-except ModuleNotFoundError:
-    print("NO TRT SUPPORT")
-
 
 def solve_pnp(keypoints, col_count, row_count, square_len, camera_matrix, dist_coeffs):
     if keypoints.shape[0] < 4:
@@ -37,7 +32,7 @@ def solve_pnp(keypoints, col_count, row_count, square_len, camera_matrix, dist_c
 def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
                 refinenet: Optional[lRefineNet] = None,
                 draw_pred: bool = False,
-                device='cpu', trt=False):
+                device='cpu'):
     """
     Do full inference on a BGR image
     """
@@ -45,10 +40,7 @@ def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img_gray = pre_bgr_image(img_gray)
     img_gray = torch.tensor(img_gray, device=device)  # TODO check me
-    if trt:
-        loc_hat, ids_hat = deepc.forward(img_gray[None]) # TODO SAME SIGN.
-    else:
-        loc_hat, ids_hat = deepc.infer_image(img_gray[None])
+    loc_hat, ids_hat = deepc.infer_image(img_gray[None])
     keypoints, ids_found = pred_to_keypoints(loc_hat, ids_hat, dust_bin_ids)
 
     # Draw predictions in RED
@@ -62,11 +54,7 @@ def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
     if refinenet is not None:
         patches = extract_patches(img_gray, keypoints)
         # Extract 8x refined corners (in original resolution)
-        if trt:
-            # TODO: RIGHT NOW IM AN ORACLE AND I KNOW THE NUMBER OF KEYPOINTS
-            keypoints = refinenet.forward(patches, keypoints.to(torch.float))  # TODO SAME SIGN.
-        else:
-            keypoints = refinenet.infer_patches(patches, keypoints)
+        keypoints = refinenet.infer_patches(patches, keypoints)
 
     keypoints = keypoints.cpu().numpy()
     ids_found = ids_found.cpu().numpy()
@@ -82,22 +70,16 @@ def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
     return keypoints, img
 
 
-def load_models(deepc_ckpt: str, refinenet_ckpt: Optional[str] = None, n_ids: int = 16, device='cuda', trt=False):
-    if trt:
-        deepc = torch.jit.load(deepc_ckpt)
-    else:
-        deepc = lModel.load_from_checkpoint(deepc_ckpt, dcModel=dcModel(n_ids), map_location='cpu')
-        deepc.eval()
-        deepc.to(device)
+def load_models(deepc_ckpt: str, refinenet_ckpt: Optional[str] = None, n_ids: int = 16, device='cuda'):
+    deepc = lModel.load_from_checkpoint(deepc_ckpt, dcModel=dcModel(n_ids), map_location='cpu')
+    deepc.eval()
+    deepc.to(device)
 
     refinenet = None
     if refinenet_ckpt is not None:
-        if trt:
-            refinenet = torch.jit.load(refinenet_ckpt)
-        else:
-            refinenet = lRefineNet.load_from_checkpoint(refinenet_ckpt, refinenet=RefineNet(), map_location='cpu')
-            refinenet.eval()
-            refinenet.to(device)
+        refinenet = lRefineNet.load_from_checkpoint(refinenet_ckpt, refinenet=RefineNet(), map_location='cpu')
+        refinenet.eval()
+        refinenet.to(device)
     return deepc, refinenet
 
 

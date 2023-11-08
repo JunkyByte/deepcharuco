@@ -47,7 +47,7 @@ class dcModel(torch.nn.Module):
 
         self.convDb = torch.nn.Conv2d(c5, n_ids + 1, kernel_size=1, stride=1, padding=0)
 
-    def _forward(self, x):
+    def forward(self, x):
         """
         Input
           x: Image pytorch tensor shaped N x 1 x H x W.
@@ -79,7 +79,7 @@ class dcModel(torch.nn.Module):
         output = {'loc': loc, 'ids': ids}
         return output
     
-    def forward(self, img: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def infer_image(self, img: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Inference on a single BGR or gray image
 
@@ -92,9 +92,9 @@ class dcModel(torch.nn.Module):
         tuple(torch.Tensor, torch.Tensor)
             loc, ids output
         """
-        # if img.ndim == 3:
-        #     img = img.unsqueeze(0) # TODO: REMOVE ME IN FAVOR OF BATCH
-        loc_hat, ids_hat = self._forward(img).values()
+        if img.ndim == 3:
+            img = img.unsqueeze(0)
+        loc_hat, ids_hat = self.forward(img).values()
         return loc_hat, ids_hat
 
 
@@ -121,16 +121,16 @@ class lModel(pl.LightningModule):
         self.dc_metrics = DC_Metrics(self.model.n_ids)
 
     def forward(self, x):
-        return self.model._forward(x)
+        return self.model.forward(x)
 
     def infer_image(self, img: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        return self.model.forward(img)
+        return self.model.infer_image(img)
 
     def validation_step(self, batch, batch_idx):
         # training_step defines the train loop.
         # it is independent of forward
         x, (loc, ids) = batch.values()
-        loc_hat, ids_hat = self.model._forward(x).values()
+        loc_hat, ids_hat = self.model.forward(x).values()
 
         loss_loc = nn.functional.cross_entropy(loc_hat, loc)
         loss_ids = nn.functional.cross_entropy(ids_hat, ids)
@@ -146,7 +146,7 @@ class lModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, (loc, ids) = batch.values()
-        loc_hat, ids_hat = self.model._forward(x).values()
+        loc_hat, ids_hat = self.model.forward(x).values()
 
         loss_loc = nn.functional.cross_entropy(loc_hat, loc)
         loss_ids = nn.functional.cross_entropy(ids_hat, ids)
