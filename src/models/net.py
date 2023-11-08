@@ -47,7 +47,7 @@ class dcModel(torch.nn.Module):
 
         self.convDb = torch.nn.Conv2d(c5, n_ids + 1, kernel_size=1, stride=1, padding=0)
 
-    def forward(self, x):
+    def _forward(self, x):
         """
         Input
           x: Image pytorch tensor shaped N x 1 x H x W.
@@ -78,6 +78,10 @@ class dcModel(torch.nn.Module):
 
         output = {'loc': loc, 'ids': ids}
         return output
+    
+    def forward(self, img: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        loc_hat, ids_hat = self.infer_image(img)
+        return loc_hat, ids_hat
 
     def infer_image(self, img: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
@@ -92,10 +96,9 @@ class dcModel(torch.nn.Module):
         tuple(torch.Tensor, torch.Tensor)
             loc, ids output
         """
-        device = next(self.parameters()).device
-        with torch.no_grad():
-            img = img[None]
-            loc_hat, ids_hat = self(img).values()
+        if img.ndim == 3:
+            img = img.unsqueeze(0) # TODO: REMOVE ME IN FAVOR OF BATCH
+        loc_hat, ids_hat = self._forward(img).values()
         return loc_hat, ids_hat
 
 

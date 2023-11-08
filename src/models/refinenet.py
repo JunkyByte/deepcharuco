@@ -46,7 +46,7 @@ class RefineNet(torch.nn.Module):
 
         self.convPb = torch.nn.Conv2d(self.last_c, 1, kernel_size=1, stride=1, padding=0)
 
-    def forward(self, x):
+    def _forward(self, x):
         """
         Input
           x: Image pytorch tensor shaped N x 1 x 24 x 24.
@@ -82,8 +82,10 @@ class RefineNet(torch.nn.Module):
 
         return loc
 
-    def infer_patches(self, patches: torch.Tensor,
-                      keypoints: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, patches: torch.Tensor, keypoints: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        return self.infer_patches(patches, keypoints)
+
+    def infer_patches(self, patches: torch.Tensor, keypoints: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Inference on 24x24 patches, assuming pre processing
 
@@ -100,12 +102,10 @@ class RefineNet(torch.nn.Module):
             and corners in 64x64 window
         """
         assert patches.shape[-2:] == (24, 24)
-        device = next(self.parameters()).device
-        with torch.no_grad():
-            if patches.ndim == 3:
-                patches = torch.unsqueeze(patches, dim=1)
-            loc_hat = self(patches)
-            loc_hat = loc_hat[:, 0, ...] # TODO: REMOVE ELLIPSIS
+        if patches.ndim == 3:
+            patches = torch.unsqueeze(patches, dim=1)
+        loc_hat = self._forward(patches)
+        loc_hat = loc_hat[:, 0, ...] # TODO: REMOVE ELLIPSIS
 
         # loc_hat: (N, H/8, W/8)
         corners = speedy_bargmax2d(loc_hat)

@@ -40,7 +40,6 @@ mdurl==0.1.2
 mpmath==1.3.0
 multidict==6.0.4
 networkx==3.2.1
-numba==0.56.4
 numpy==1.23.5
 numpydoc==1.5.0
 opencv-contrib-python==4.6.0.66

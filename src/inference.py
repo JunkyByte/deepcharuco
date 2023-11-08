@@ -11,6 +11,11 @@ from models.model_utils import pred_to_keypoints, extract_patches, pre_bgr_image
 from models.net import lModel, dcModel
 from models.refinenet import RefineNet, lRefineNet
 
+try:
+    import torch_tensorrt
+except ModuleNotFoundError:
+    print("NO TRT SUPPORT")
+
 
 def solve_pnp(keypoints, col_count, row_count, square_len, camera_matrix, dist_coeffs):
     if keypoints.shape[0] < 4:
@@ -32,7 +37,7 @@ def solve_pnp(keypoints, col_count, row_count, square_len, camera_matrix, dist_c
 def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
                 refinenet: Optional[lRefineNet] = None,
                 draw_pred: bool = False,
-                device='cpu'):
+                device='cpu', trt=False):
     """
     Do full inference on a BGR image
     """
@@ -70,17 +75,22 @@ def infer_image(img: np.ndarray, dust_bin_ids: int, deepc: lModel,
     return keypoints, img
 
 
-def load_models(deepc_ckpt: str, refinenet_ckpt: Optional[str] = None, n_ids: int = 16, device='cuda'):
-    deepc = lModel.load_from_checkpoint(deepc_ckpt, dcModel=dcModel(n_ids))
-    deepc.eval()
-    deepc.to(device)
+def load_models(deepc_ckpt: str, refinenet_ckpt: Optional[str] = None, n_ids: int = 16, device='cuda', trt=False):
+    if trt:
+        deepc = torch.jit.load(deepc_ckpt)
+    else:
+        deepc = lModel.load_from_checkpoint(deepc_ckpt, dcModel=dcModel(n_ids), map_location='cpu')
+        deepc.eval()
+        deepc.to(device)
 
     refinenet = None
     if refinenet_ckpt is not None:
-        refinenet = lRefineNet.load_from_checkpoint(refinenet_ckpt, refinenet=RefineNet())
-        refinenet.eval()
-        refinenet.to(device)
-
+        if trt:
+            refinenet = torch.jit.load(refinenet_ckpt)
+        else:
+            refinenet = lRefineNet.load_from_checkpoint(refinenet_ckpt, refinenet=RefineNet(), map_location='cpu')
+            refinenet.eval()
+            refinenet.to(device)
     return deepc, refinenet
 
 

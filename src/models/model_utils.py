@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import cv2
-from numba import njit, prange
 
 
 def pred_sub_pix(img, kpts, ids, region=(8, 8)):

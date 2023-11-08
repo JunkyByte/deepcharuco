@@ -26,9 +26,11 @@ if __name__ == '__main__':
     parameters = cv2.aruco.DetectorParameters_create()
 
     # Load models
-    deepc_path = "./reference/longrun-epoch=99-step=369700.ckpt"
-    refinenet_path = "./reference/second-refinenet-epoch-100-step=373k.ckpt"
-    deepc, refinenet = load_models(deepc_path, refinenet_path, n_ids=config.n_ids, device=device)
+    # deepc_path = "./reference/longrun-epoch=99-step=369700.ckpt"
+    # refinenet_path = "./reference/second-refinenet-epoch-100-step=373k.ckpt"
+    deepc_path = "./deepc_trt.ts"
+    refinenet_path = "./refinenet.ts"
+    deepc, refinenet = load_models(deepc_path, refinenet_path, n_ids=config.n_ids, device=device, trt=True)
 
     # Inference test on custom image
     SAMPLE_IMAGE = './reference/samples_test/IMG_7412.png'
