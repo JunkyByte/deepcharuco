@@ -81,10 +81,7 @@ class RefineNet(torch.nn.Module):
         loc = self.convPb(cPa)
 
         return loc
-
-    def forward(self, patches: torch.Tensor, keypoints: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        return self.infer_patches(patches, keypoints)
-
+    
     def infer_patches(self, patches: torch.Tensor, keypoints: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Inference on 24x24 patches, assuming pre processing
@@ -104,8 +101,7 @@ class RefineNet(torch.nn.Module):
         assert patches.shape[-2:] == (24, 24)
         if patches.ndim == 3:
             patches = torch.unsqueeze(patches, dim=1)
-        loc_hat = self._forward(patches)
-        loc_hat = loc_hat[:, 0, ...] # TODO: REMOVE ELLIPSIS
+        loc_hat = self._forward(patches).unsqueeze(1)
 
         # loc_hat: (N, H/8, W/8)
         corners = speedy_bargmax2d(loc_hat)
@@ -113,6 +109,16 @@ class RefineNet(torch.nn.Module):
         # Add keypoints to center on keypoints, divide by 8 to account for 8x resolution
         corners_og = (corners - 32) / 8 + keypoints  # Is 32 right? :)
         return corners_og, corners
+
+    # TODO: Custom wrapper if cannot compile correct method for simplicity
+    def forward(self, patches: torch.Tensor, keypoints: torch.Tensor) -> torch.Tensor:
+        """
+        Tensorrt will call this. Use infer_patches if calling from torch.
+        """
+        loc_hat = self._forward(patches).unsqueeze(1)
+        corners = speedy_bargmax2d(loc_hat)
+        corners_og = (corners - 32) / 8 + keypoints  # Is 32 right? :)
+        return corners_og
 
 
 def conv(in_planes, out_planes, kernel_size=3):
@@ -138,11 +144,11 @@ class lRefineNet(pl.LightningModule):
         self.rn_metrics = Refinenet_Metrics()
 
     def forward(self, x):
-        return self.model(x)
+        return self.model._forward(x)
 
     def infer_patches(self, patches: torch.Tensor,
                       keypoints: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        return self.model.infer_patches(patches, keypoints)
+        return self.model.forward(patches, keypoints)
 
     def validation_step(self, batch, batch_idx):
         x, loc = batch
@@ -151,7 +157,7 @@ class lRefineNet(pl.LightningModule):
 
         x = x.view(-1, *x.size()[-3:])
         loc = loc.view(-1, *loc.size()[-3:])
-        loc_hat = self.model(x)
+        loc_hat = self.model._forward(x)
 
         loss_loc = nn.functional.mse_loss(loc_hat, loc)
 
@@ -167,7 +173,7 @@ class lRefineNet(pl.LightningModule):
 
         x = x.view(-1, *x.size()[-3:])
         loc = loc.view(-1, *loc.size()[-3:])
-        loc_hat = self.model(x)
+        loc_hat = self.model._forward(x)
 
         loss_loc = nn.functional.mse_loss(loc_hat, loc)
 

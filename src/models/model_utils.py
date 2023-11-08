@@ -35,6 +35,7 @@ def extract_patches(img: torch.Tensor, keypoints: torch.Tensor, patch_size: int 
     return patches
 
 
+@torch.jit.script
 def speedy_bargmax2d(x):
     _, indices = torch.max(x.view(x.shape[0], -1), dim=1)
     col_indices = indices % x.shape[2]
