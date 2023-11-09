@@ -69,7 +69,7 @@ trt_ts_module = torch_tensorrt.compile(dc_script,
 print('Saving!')
 torch.jit.save(trt_ts_module, "./reference/deepc_trt.ts") # save the TRT embedded Torchscript
 print('Testing')
-result = trt_ts_module(torch.zeros([1, 1, 240, 320]).cuda()) # run inference
+result = trt_ts_module(torch.zeros([MAX_BATCH_SIZE, 1, 240, 320]).cuda()) # run inference
 
 # Same for refinenet
 trt_ts_module = torch_tensorrt.compile(ref_script,
