@@ -136,13 +136,15 @@ if __name__ == '__main__':
 
         # Run inference
         keypoints, out_img_dc = infer_image(img, config.n_ids, deepc,
-                                            refinenet, draw_pred=True)
+                                            refinenet, draw_pred=True,
+                                            device=device)
         print('Keypoints\n', keypoints)
 
         if up_scale > 1:
             # Run inference again without refinenet
             keypoints_raw, _ = infer_image(img, config.n_ids, deepc, None,
-                                           draw_pred=False)
+                                           draw_pred=False,
+                                           device=device)
 
             label_kpts, label_ids = label_to_keypoints(loc[None, ...], ids[None, ...], config.n_ids)
             label_kpts = label_kpts.astype(np.float32) / up_scale
@@ -184,7 +186,8 @@ if __name__ == '__main__':
         # Run inference
         keypoints, out_img_dc = infer_image(img, config.n_ids, deepc,
                                             refinenet,
-                                            draw_pred=True)
+                                            draw_pred=True,
+                                            device=device)
         print(keypoints)
 
         # cv2 inference
