@@ -89,13 +89,13 @@ if __name__ == '__main__':
     from gridwindow import MagicGrid
     from utils import pixel_error
     from data import CharucoDataset
-    from aruco_utils import get_aruco_dict, get_board
+    from aruco_utils import get_aruco_dict, get_board, create_detector_parameters
     config = load_configuration(configs.CONFIG_PATH)
 
     # Load aruco board for cv2 inference
     dictionary = get_aruco_dict(config.board_name)
     board = get_board(config)
-    parameters = cv2.aruco.DetectorParameters_create()
+    parameters = create_detector_parameters()
 
     # Load models
     deepc_path = "./reference/longrun-epoch=99-step=369700.ckpt"

@@ -3,16 +3,43 @@ import cv2
 from models.model_utils import label_to_keypoints
 
 
+def create_detector_parameters():
+    if hasattr(cv2.aruco, "DetectorParameters"):
+        return cv2.aruco.DetectorParameters()
+    return cv2.aruco.DetectorParameters_create()
+
+
+def _detect_markers(gray: np.ndarray, dictionary, parameters):
+    if hasattr(cv2.aruco, "ArucoDetector"):
+        detector = cv2.aruco.ArucoDetector(dictionary, parameters)
+        return detector.detectMarkers(gray)
+    return cv2.aruco.detectMarkers(gray, dictionary, parameters=parameters)
+
+
+def get_board_object_points(board) -> np.ndarray:
+    if hasattr(board, "getObjPoints"):
+        return np.array(board.getObjPoints(), dtype=np.float32)
+    return np.array(board.objPoints, dtype=np.float32)
+
+
 def cv2_aruco_detect(image, dictionary, board, parameters):
     # Convert image to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Detect markers
-    corners, ids, _ = cv2.aruco.detectMarkers(gray, dictionary, parameters=parameters)
-    corners, ids, _, _ = cv2.aruco.refineDetectedMarkers(image, board, corners, ids, np.array([]))
+    corners, ids, rejected = _detect_markers(gray, dictionary, parameters)
+    if hasattr(cv2.aruco, "refineDetectedMarkers"):
+        try:
+            corners, ids, rejected, _ = cv2.aruco.refineDetectedMarkers(
+                image, board, corners, ids, rejected
+            )
+        except TypeError:
+            corners, ids, rejected, _ = cv2.aruco.refineDetectedMarkers(
+                image, board, corners, ids, np.array([])
+            )
 
     # If markers are detected, draw them and the board inner corners
-    if len(corners) > 0:
+    if ids is not None and len(corners) > 0:
         # Get board corners
         board_corners = [corners[i][0] for i in range(len(corners))]
         board_corners = np.array(board_corners, dtype=np.float32)
@@ -24,17 +51,33 @@ def cv2_aruco_detect(image, dictionary, board, parameters):
 
 
 def get_board(configs):
-    board = cv2.aruco.CharucoBoard_create(
+    dictionary = get_aruco_dict(configs.board_name)
+
+    if hasattr(cv2.aruco, "CharucoBoard"):
+        try:
+            return cv2.aruco.CharucoBoard(
+                (configs.col_count, configs.row_count),
+                configs.square_len,
+                configs.marker_len,
+                dictionary
+            )
+        except TypeError:
+            pass
+
+    return cv2.aruco.CharucoBoard_create(
         squaresX=configs.col_count,
         squaresY=configs.row_count,
         squareLength=configs.square_len,
         markerLength=configs.marker_len,
-        dictionary=get_aruco_dict(configs.board_name))
-    return board
+        dictionary=dictionary
+    )
 
 
 def get_aruco_dict(board_name):
-    return cv2.aruco.Dictionary_get(getattr(cv2.aruco, board_name))
+    dict_id = getattr(cv2.aruco, board_name)
+    if hasattr(cv2.aruco, "getPredefinedDictionary"):
+        return cv2.aruco.getPredefinedDictionary(dict_id)
+    return cv2.aruco.Dictionary_get(dict_id)
 
 
 def board_image(board, resolution: tuple[int, int],
@@ -75,7 +118,11 @@ def board_image(board, resolution: tuple[int, int],
     object, which is converted to color format using `cv2.cvtColor` with the
     `cv2.COLOR_GRAY2BGR` flag.
     """
-    img = cv2.cvtColor(board.draw(outSize=resolution), cv2.COLOR_GRAY2BGR)
+    if hasattr(board, "generateImage"):
+        board_gray = board.generateImage(resolution)
+    else:
+        board_gray = board.draw(outSize=resolution)
+    img = cv2.cvtColor(board_gray, cv2.COLOR_GRAY2BGR)
     pixel_offset = np.array([resolution[0] / col_count, resolution[1] / row_count])
 
     # row_id, col_id, (x, y) pixel coords
