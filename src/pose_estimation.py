@@ -9,7 +9,15 @@ import tqdm
 from configs import load_configuration
 from utils import save_video
 from inference import infer_image, load_models, solve_pnp
-from aruco_utils import draw_inner_corners, board_image, get_board, cv2_aruco_detect, get_aruco_dict
+from aruco_utils import (
+    draw_inner_corners,
+    board_image,
+    get_board,
+    cv2_aruco_detect,
+    get_aruco_dict,
+    create_detector_parameters,
+    get_board_object_points,
+)
 from gridwindow import MagicGrid
 
 
@@ -36,7 +44,7 @@ if __name__ == '__main__':
 
     # These are needed just for comparison with cv2
     dictionary = get_aruco_dict(config.board_name)
-    parameters = cv2.aruco.DetectorParameters_create()
+    parameters = create_detector_parameters()
 
     frames = []
     if "DISPLAY" in os.environ:
@@ -64,7 +72,7 @@ if __name__ == '__main__':
                                                           dist_coeffs, None,
                                                           None)
 
-        object_points_found = np.array(board.objPoints)[ids].reshape((-1, 3))
+        object_points_found = get_board_object_points(board)[ids].reshape((-1, 3))
         image_points = np.array(corners).reshape((-1, 2))
 
         ret_cv2 = False

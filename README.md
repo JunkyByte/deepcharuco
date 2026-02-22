@@ -47,7 +47,9 @@ Running on macbook air M2 using MPS
 - Full pipeline: `>= 30 fps`
 
 ## Setup for training (and inference on val data)
-`requirements.txt` should contain a valid list of requirements, notice `opencv-contrib` is `<4.7`.  
+`requirements.txt` should contain a valid list of requirements.  
+Current compatibility target is `opencv-contrib-python>=4.6,<4.12` (including OpenCV 4.11).  
+OpenCV ArUco API differences are handled at runtime in `src/aruco_utils.py` by checking available symbols (`hasattr`) and selecting the compatible code path (e.g. `ArucoDetector` vs `detectMarkers`, `CharucoBoard` vs `CharucoBoard_create`).
 If you wan to run `inference.py` or the `data.py` and `data_refinenet.py` you will need to install [gridwindow](https://github.com/JunkyByte/python-gridwindow) which is used for visualization (or replace everything with normal `cv2` windows)
 Synthetic data for `DeepCharuco` training
 ![data](https://i.imgur.com/KasncjL.png)  
